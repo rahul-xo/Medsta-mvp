@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { NavLink, Link } from "react-router-dom";
 
 const NavBar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -6,18 +7,18 @@ const NavBar = () => {
   return (
     <>
       <div className="w-full h-16 fixed flex justify-between items-center top-0 left-0 z-50 bg-white/90 backdrop-blur-sm shadow-md px-4 sm:px-6">
-        <div className="logo w-20 overflow-hidden flex items-center gap-1 text-xl font-semibold">
-          <img className="h-[90px] w-[90px]" src="../Images/logo.svg" alt="Logo" />
+        <div className="logo w-30 overflow-hidden flex items-center gap-1 text-xl font-semibold">
+          <NavLink to="/"><img className=" w-full" src="../Images/logo.png" alt="Logo" /></NavLink>
         </div>
 
         <div className="hidden md:flex items-center gap-8">
           <ul className="flex gap-8 text-md text-gray-800">
-            <li className="font-medium cursor-pointer hover:text-blue-600 transition-colors">
-              Features
-            </li>
-            <li className="font-medium cursor-pointer hover:text-blue-600 transition-colors">
+            <Link to="/#services"><li className="font-medium cursor-pointer hover:text-blue-600 transition-colors">
+              Services
+            </li></Link>
+            <NavLink to="/about"><li className="font-medium cursor-pointer hover:text-blue-600 transition-colors">
               About
-            </li>
+            </li></NavLink>
             <li className="font-medium cursor-pointer hover:text-blue-600 transition-colors">
               Policies
             </li>
@@ -48,7 +49,7 @@ const NavBar = () => {
       {isMenuOpen && (
         <div className="md:hidden fixed top-16 left-0 w-full h-[calc(100vh-4rem)] bg-white z-40 flex flex-col items-center justify-center gap-8">
           <ul className="flex flex-col gap-8 text-xl text-gray-800 text-center">
-            <li className="font-semibold cursor-pointer">Features</li>
+            <Link to="/#services"><li className="font-semibold cursor-pointer">Services</li></Link>
             <li className="font-semibold cursor-pointer">About</li>
             <li className="font-semibold cursor-pointer">Policies</li>
             <li className="font-semibold cursor-pointer">Contact</li>

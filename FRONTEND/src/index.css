@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+/* Global background for the entire site (match GetInTouch pale background) */
+body {
+	background-color: #F0F8FF; /* requested HSL(210,20%,95%) */
+}
