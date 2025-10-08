@@ -29,12 +29,12 @@ const NavBar = () => {
         </div>
         
         <div className="hidden md:flex items-center gap-4">
-          <button className="bg-transparent text-blue-600 font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-blue-50 transition-colors">
+          <NavLink to="/login" className="bg-transparent text-blue-600 font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-blue-50 transition-colors">
             Login
-          </button>
-          <button className="bg-blue-600 text-white font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-blue-700 transition-colors">
+          </NavLink>
+          <NavLink to="/signup" className="bg-blue-600 text-white font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-blue-700 transition-colors">
             Sign Up
-          </button>
+          </NavLink>
         </div>
 
         <div className="md:hidden flex items-center">
@@ -55,9 +55,9 @@ const NavBar = () => {
             <li className="font-semibold cursor-pointer">Contact</li>
           </ul>
           <div className="flex flex-col gap-4 w-4/5">
-            <button className="bg-transparent text-blue-600 border border-blue-600 font-semibold px-4 py-2 rounded-md">
+            <Link to="/login" className="bg-transparent text-blue-600 border border-blue-600 font-semibold px-4 py-2 rounded-md text-center">
               Login
-            </button>
+            </Link>
             <button className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md">
               Sign Up
             </button>

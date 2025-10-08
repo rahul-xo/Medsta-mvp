@@ -7,6 +7,10 @@ import Login from './Pages/Login.jsx'
 import Home from './Pages/Home.jsx'
 import About from './Pages/About.jsx'
 import BookAppointment from './Pages/BookAppointment.jsx'
+import MedicineOrdering from './Pages/MedicineOrdering.jsx'
+import DiagnosticTests from './Pages/DiagnosticTests.jsx'
+
+import MultivendorWorkplace from './Pages/MultivendorWorkplace.jsx'
 
 const router=createBrowserRouter([
   {
@@ -20,6 +24,23 @@ const router=createBrowserRouter([
       {
         path:'/book',
         element:<BookAppointment/>
+      },
+      {
+        path:'/multivendor-workplace',
+        element:<MultivendorWorkplace/>
+      },
+    
+      {
+        path:'/medicine-ordering',
+        element:<MedicineOrdering/>
+      },
+      {
+        path:'/diagnostic-tests',
+        element:<DiagnosticTests/>
+      },
+      {
+        path:'/multivendor-workplace',
+        element:<MultivendorWorkplace/>
       },
       {
         path:'/about',

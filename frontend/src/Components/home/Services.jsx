@@ -18,18 +18,21 @@ const features = [
     title: "Multi-vendor Marketplace",
     desc: "Doctors, labs, pharmacies, physiotherapists and all allied services.",
     status: "active",
+    path: "/multivendor-workplace",
   },
   {
   icon: <FaPills className="text-green-500 text-3xl" />,
     title: "Medicine Ordering",
     desc: "order medicine from any medsta partnered pharmacy and get it delivered within few hours.",
     status: "active",
+    path: "/medicine-ordering",
   },
   {
   icon: <FaFileMedical className="text-green-500 text-3xl" />,
     title: "Diagnostic Tests",
     desc: "Book diagnostic tests from any medsta partnered lab and get samples collected from home.",
     status: "active",
+    path: "/diagnostic-tests",
   },
   {
     icon: <FaCalendarCheck className="text-green-500 text-3xl" />,

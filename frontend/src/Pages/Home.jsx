@@ -1,6 +1,7 @@
 
 import Services from "../Components/home/Services";
 import GetInTouch from "../Components/home/GetInTouch";
+import MedstaForProviders from "../Components/home/MedstaForProviders";
 
 const Home = () => {
   return (
@@ -17,6 +18,7 @@ Healthcare, Your Way.</h1>
       </div>
       <Services />
       <GetInTouch />
+      <MedstaForProviders />
     </div>
   );
 };
