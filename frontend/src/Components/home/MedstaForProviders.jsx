@@ -1,34 +1,66 @@
-import React from 'react'
-import { FaTruck, FaAmbulance, FaHandsHelping } from 'react-icons/fa'
+// frontend/src/Components/home/MedstaForProviders.jsx
+
+import React from 'react';
 
 const MedstaForProviders = () => {
   return (
-    <section className="py-12 bg-white">
-      <div className="max-w-6xl mx-auto px-4">
-        <h2 className="text-2xl font-semibold text-center mb-8">Partner with Medsta</h2>
+    // UPDATED: Removed background color for a simpler look
+    <section className="py-20 bg-white text-slate-800">
+      <div className="max-w-7xl mx-auto px-4">
+        
+        {/* Header with font and color matching 'Get in Touch' */}
+        <div className="text-center mb-16">
+          <h2 className="text-4xl md:text-5xl font-semibold text-blue-500 mb-4">
+            Medsta for Providers
+          </h2>
+          <p className="text-lg text-gray-700">
+            Join our network and grow with us.
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 bg-green-50 rounded-lg shadow border border-green-100 text-center">
-            <FaTruck className="text-3xl text-green-600 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold mb-2">Partner with Delivery</h3>
-            <p className="text-slate-600">Join our network of delivery partners to fulfill medicine and lab orders in your area.</p>
+        {/* Grid container for the cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 justify-items-center">
+          
+          {/* Card 1: Partner with us */}
+          <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center text-center w-full max-w-sm transition-transform hover:scale-105" style={{ minHeight: '320px' }}>
+            <div className="w-24 h-24 bg-blue-500 rounded-full mb-6 flex items-center justify-center">
+              {/* Icon placeholder */}
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">Partner with us</h3>
+            <p className="text-gray-600 text-sm mb-6 flex-grow">For Doctors, Labs, Pharmacies...</p>
+            <button className="bg-blue-600 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-md transition-colors duration-200">
+              Register Now
+            </button>
           </div>
 
-          <div className="p-6 bg-green-50 rounded-lg shadow border border-green-100 text-center">
-            <FaAmbulance className="text-3xl text-green-600 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold mb-2">Partner in Transport</h3>
-            <p className="text-slate-600">Offer patient transport, ambulance, or cab services to help patients reach care on time.</p>
+          {/* Card 2: Join our fleet */}
+          <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center text-center w-full max-w-sm transition-transform hover:scale-105" style={{ minHeight: '320px' }}>
+            <div className="w-24 h-24 bg-blue-500 rounded-full mb-6 flex items-center justify-center">
+              {/* Icon placeholder */}
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">Join our fleet</h3>
+            <p className="text-gray-600 text-sm mb-6 flex-grow">For Delivery Agents</p>
+            <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-md transition-colors duration-200">
+              Register Now
+            </button>
           </div>
 
-          <div className="p-6 bg-green-50 rounded-lg shadow border border-green-100 text-center">
-            <FaHandsHelping className="text-3xl text-green-600 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold mb-2">Partner with Us</h3>
-            <p className="text-slate-600">Register your clinic, lab, or pharmacy to reach more patients through Medsta's marketplace.</p>
+          {/* Card 3: Join as Affiliate */}
+          <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center text-center w-full max-w-sm transition-transform hover:scale-105" style={{ minHeight: '320px' }}>
+            <div className="w-24 h-24 bg-blue-500 rounded-full mb-6 flex items-center justify-center">
+              {/* Icon placeholder */}
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">Join as Affiliate</h3>
+            <p className="text-gray-600 text-sm mb-6 flex-grow">Earn with Medsta</p>
+            <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-md transition-colors duration-200">
+              Register Now
+            </button>
           </div>
+
         </div>
       </div>
     </section>
-  )
-}
+  );
+};
 
-export default MedstaForProviders
+export default MedstaForProviders;

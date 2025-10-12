@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, Link } from "react-router-dom";
+import { FaShoppingCart } from 'react-icons/fa';
 
 const NavBar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -7,8 +8,8 @@ const NavBar = () => {
   return (
     <>
       <div className="w-full h-16 fixed flex justify-between items-center top-0 left-0 z-50 bg-white/90 backdrop-blur-sm shadow-md px-4 sm:px-6">
-        <div className="logo w-30 overflow-hidden flex items-center gap-1 text-xl font-semibold">
-          <NavLink to="/"><img className=" w-full" src="../Images/logo.png" alt="Logo" /></NavLink>
+        <div className="logo w-45 overflow-hidden flex items-center gap-1 text-xl font-semibold">
+          <NavLink to="/"><img className="w-56 sm:w-64 md:w-72 lg:w-80 xl:w-96 object-contain" src="../Images/logo.png" alt="Logo" /></NavLink>
         </div>
 
         <div className="hidden md:flex items-center gap-8">
@@ -19,16 +20,25 @@ const NavBar = () => {
             <NavLink to="/about"><li className="font-medium cursor-pointer hover:text-blue-600 transition-colors">
               About
             </li></NavLink>
-            <li className="font-medium cursor-pointer hover:text-blue-600 transition-colors">
+            <NavLink to='/policies'><li className="font-medium cursor-pointer hover:text-blue-600 transition-colors">
               Policies
-            </li>
+            </li></NavLink>
             <li className="font-medium cursor-pointer hover:text-blue-600 transition-colors">
               Contact
             </li>
           </ul>
         </div>
+
+        
         
         <div className="hidden md:flex items-center gap-4">
+          <NavLink 
+              to="/cart"
+              className="flex items-center gap-2 text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium"
+            >
+              <FaShoppingCart />
+              <span>Cart</span>
+            </NavLink>
           <NavLink to="/login" className="bg-transparent text-blue-600 font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-blue-50 transition-colors">
             Login
           </NavLink>
@@ -55,6 +65,13 @@ const NavBar = () => {
             <li className="font-semibold cursor-pointer">Contact</li>
           </ul>
           <div className="flex flex-col gap-4 w-4/5">
+            <NavLink 
+              to="/cart"
+              className="flex items-center gap-2 text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium"
+            >
+              <FaShoppingCart />
+              <span>Cart</span>
+            </NavLink>
             <Link to="/login" className="bg-transparent text-blue-600 border border-blue-600 font-semibold px-4 py-2 rounded-md text-center">
               Login
             </Link>

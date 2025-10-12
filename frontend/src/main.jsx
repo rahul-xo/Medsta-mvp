@@ -1,3 +1,4 @@
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -9,8 +10,10 @@ import About from './Pages/About.jsx'
 import BookAppointment from './Pages/BookAppointment.jsx'
 import MedicineOrdering from './Pages/MedicineOrdering.jsx'
 import DiagnosticTests from './Pages/DiagnosticTests.jsx'
+import Policies from './Pages/Policies.jsx'
 
 import MultivendorWorkplace from './Pages/MultivendorWorkplace.jsx'
+import "react-responsive-carousel/lib/styles/carousel.min.css";
 
 const router=createBrowserRouter([
   {
@@ -38,13 +41,14 @@ const router=createBrowserRouter([
         path:'/diagnostic-tests',
         element:<DiagnosticTests/>
       },
-      {
-        path:'/multivendor-workplace',
-        element:<MultivendorWorkplace/>
-      },
+     
       {
         path:'/about',
         element:<About/>
+      },
+      {
+        path:'/policies',
+        element:<Policies/>
       },
       {
         path:'/login',
