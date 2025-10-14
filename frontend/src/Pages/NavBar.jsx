@@ -1,9 +1,29 @@
-import React, { useState } from "react";
-import { NavLink, Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { NavLink, Link, useNavigate } from "react-router-dom";
 import { FaShoppingCart } from 'react-icons/fa';
+import { auth } from '@/firebase.js';
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 const NavBar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate('/login');
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
 
   return (
     <>
@@ -28,8 +48,6 @@ const NavBar = () => {
             </li>
           </ul>
         </div>
-
-        
         
         <div className="hidden md:flex items-center gap-4">
           <NavLink 
@@ -39,12 +57,21 @@ const NavBar = () => {
               <FaShoppingCart />
               <span>Cart</span>
             </NavLink>
-          <NavLink to="/login" className="bg-transparent text-blue-600 font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-blue-50 transition-colors">
-            Login
-          </NavLink>
-          <NavLink to="/signup" className="bg-blue-600 text-white font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-blue-700 transition-colors">
-            Sign Up
-          </NavLink>
+          
+          {user ? (
+            <button onClick={handleLogout} className="bg-red-500 text-white font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-red-600 transition-colors">
+              Logout
+            </button>
+          ) : (
+            <>
+              <NavLink to="/login" className="bg-transparent text-blue-600 font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-blue-50 transition-colors">
+                Login
+              </NavLink>
+              <NavLink to="/signup" className="bg-blue-600 text-white font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-blue-700 transition-colors">
+                Sign Up
+              </NavLink>
+            </>
+          )}
         </div>
 
         <div className="md:hidden flex items-center">
@@ -72,12 +99,20 @@ const NavBar = () => {
               <FaShoppingCart />
               <span>Cart</span>
             </NavLink>
-            <Link to="/login" className="bg-transparent text-blue-600 border border-blue-600 font-semibold px-4 py-2 rounded-md text-center">
-              Login
-            </Link>
-            <button className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md">
-              Sign Up
-            </button>
+            {user ? (
+              <button onClick={handleLogout} className="bg-red-500 text-white font-semibold px-4 py-2 rounded-md">
+                Logout
+              </button>
+            ) : (
+              <>
+                <Link to="/login" className="bg-transparent text-blue-600 border border-blue-600 font-semibold px-4 py-2 rounded-md text-center">
+                  Login
+                </Link>
+                <Link to="/signup" className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md text-center">
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -86,4 +121,3 @@ const NavBar = () => {
 };
 
 export default NavBar;
-
