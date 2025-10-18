@@ -24,7 +24,7 @@ export default function GetInTouch() {
   };
 
   return (
-    <section className="py-20 bg-slate-50 text-slate-800">
+    <section className="py-6 bg-slate-50 text-slate-800">
       <div className="max-w-5xl mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-8">

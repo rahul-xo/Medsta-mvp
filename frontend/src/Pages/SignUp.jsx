@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { auth, db } from '../firebase.js'; // Corrected import path
+import { auth, db } from '/src/firebase.js'; // Corrected import path
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 
@@ -8,7 +8,7 @@ const SignUp = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState('patient'); // Default role is patient
+  const [role, setRole] = useState('patient');
   const navigate = useNavigate();
 
   const handleSignUp = async (e) => {
@@ -17,11 +17,10 @@ const SignUp = () => {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Store user info and role in Firestore
       await setDoc(doc(db, 'users', user.uid), {
         fullName,
         email,
-        role, // Save the selected role
+        role,
       });
 
       navigate('/login');
@@ -32,11 +31,10 @@ const SignUp = () => {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-white py-12">
+    <main className="min-h-screen flex items-center justify-center bg-white py-12 pt-20">
       <div className="max-w-md w-full px-6">
         <h1 className="text-3xl font-bold text-center mb-6 text-green-700">Create an Account</h1>
         <form onSubmit={handleSignUp} className="space-y-6">
-          {/* Role Selection */}
           <div className="flex justify-around mb-4">
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
