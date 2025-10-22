@@ -1,0 +1,5 @@
+- correct all the folder's heirarchy
+
+- signup forms ka width and styles wagera sahi kardena
+
+- landing page ka UI and Styling (color scheme sab) change to the one which prakhar shared in Canva (make everything same as there)

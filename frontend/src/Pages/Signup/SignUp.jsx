@@ -10,8 +10,8 @@ const SignUp = () => {
           <p className="text-sm text-slate-500 mb-6">Choose how you'd like to sign up</p>
 
           <div className="flex flex-col gap-4">
-            <Link to="/signup/PatientSignup" className="block w-full text-left bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700">Sign up as Patient</Link>
-            <Link to="/signup/ProviderSignup" className="block w-full text-left bg-slate-100 text-slate-900 px-4 py-3 rounded-md hover:bg-slate-200">Sign up as Provider</Link>
+            <Link to="/signup/patient" className="block w-full text-left bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700">Sign up as Patient</Link>
+            <Link to="/signup/provider" className="block w-full text-left bg-slate-100 text-slate-900 px-4 py-3 rounded-md hover:bg-slate-200">Sign up as Provider</Link>
           </div>
         </div>
       </div>
