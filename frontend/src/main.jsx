@@ -17,7 +17,7 @@ import PatientDashboard from './Pages/PatientDashboard.jsx';
 import ProviderDashboard from './Pages/ProviderDashboard.jsx';
 
 import "react-responsive-carousel/lib/styles/carousel.min.css";
-import PatientSignup from './Pages/Signup/PatientSignup.jsx'
+import PatientSignup from './Pages/PatientSignup.jsx'
 import ProviderSignup from './Pages/Signup/ProviderSignup.jsx'
 import DoctorSignup from './Pages/Signup/Provider/DoctorSignup.jsx'
 import DiagnosticCenterSignup from './Pages/Signup/Provider/DiagnosticCenterSignup.jsx'
