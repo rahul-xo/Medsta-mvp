@@ -5,7 +5,8 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import AddressPicker from "/src/Components/common/AddressPicker.jsx";
 import ToggleSwitch from "/src/Components/common/ToggleSwitch.jsx";
-import { linkPhoneToCurrentUser } from "/src/utils/phoneAuth.js";
+import OtpModal from "/src/Components/common/OtpModal.jsx";
+import { startPhoneLinking } from "/src/utils/phoneAuth.js";
 
 const DoctorSignup = () => {
   const [formData, setFormData] = useState({
@@ -27,6 +28,9 @@ const DoctorSignup = () => {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [isOtpSubmitting, setIsOtpSubmitting] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState(null);
   const navigate = useNavigate();
 
   const isValid = () => {
@@ -90,10 +94,18 @@ const DoctorSignup = () => {
         // Step 4: Link phone if provided
         if (formData.phone) {
           try {
-            await linkPhoneToCurrentUser(formData.phone);
+            const confirmation = await startPhoneLinking(formData.phone);
+            setPendingConfirmation(confirmation);
+            setOtpOpen(true);
+            await new Promise((resolve) => {
+              const check = () => {
+                if (!otpOpen) resolve();
+                else setTimeout(check, 100);
+              };
+              check();
+            });
           } catch (e) {
-            console.warn("Phone linking failed:", e);
-            // Non-critical error, continue with signup
+            console.warn("Phone linking start failed:", e);
           }
         }
 
@@ -115,6 +127,24 @@ const DoctorSignup = () => {
       console.error("Error signing up:", error);
       setError(error.message || "Failed to create account. Please try again.");
       setIsLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async (code) => {
+    if (!pendingConfirmation) {
+      setOtpOpen(false);
+      return;
+    }
+    try {
+      setIsOtpSubmitting(true);
+      await pendingConfirmation.confirm(code);
+      setPendingConfirmation(null);
+      setOtpOpen(false);
+    } catch (e) {
+      setIsOtpSubmitting(false);
+      setError(e.message || "Invalid OTP. Please try again.");
+    } finally {
+      setIsOtpSubmitting(false);
     }
   };
 
@@ -398,6 +428,13 @@ const DoctorSignup = () => {
           </p>
         </div>
       </div>
+      <OtpModal
+        open={otpOpen}
+        phone={formData.phone}
+        onSubmit={handleOtpSubmit}
+        onClose={() => setOtpOpen(false)}
+        isSubmitting={isOtpSubmitting}
+      />
     </main>
   );
 };

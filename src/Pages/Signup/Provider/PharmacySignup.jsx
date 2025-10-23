@@ -2,36 +2,49 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { auth, db } from "/src/firebase.js";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { linkPhoneToCurrentUser } from "/src/utils/phoneAuth.js";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import AddressPicker from "/src/Components/common/AddressPicker.jsx";
+import OtpModal from "/src/Components/common/OtpModal.jsx";
+import { startPhoneLinking } from "/src/utils/phoneAuth.js";
 
-const PatientSignup = () => {
+const PharmacySignup = () => {
   const [formData, setFormData] = useState({
-    fullName: "",
+    pharmacyName: "",
     email: "",
+    phone: "",
+    pharmacyLicenseNumber: "",
+    pharmacyAddress: "",
+    pharmacyLat: null,
+    pharmacyLng: null,
+    pharmacyOpeningHours: "",
     password: "",
     confirmPassword: "",
-    phone: "",
-    dob: "",
-    gender: "",
-    bloodGroup: "",
   });
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [isOtpSubmitting, setIsOtpSubmitting] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState(null);
   const navigate = useNavigate();
+
+  const isValid = () => {
+    return !!(
+      formData.pharmacyName &&
+      formData.email &&
+      formData.pharmacyAddress &&
+      formData.password.length >= 6 &&
+      formData.password === formData.confirmPassword
+    );
+  };
 
   const handleSignUp = async (e) => {
     e.preventDefault();
-    const { password, confirmPassword } = formData;
+    setSubmitAttempted(true);
     setError(null);
 
-    // Basic password validations
-    if (!password || password.length < 6) {
-      setError("Password must be at least 6 characters long");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
+    if (!isValid()) {
+      setError("Please fill in all required fields and ensure passwords match");
       return;
     }
 
@@ -51,17 +64,20 @@ const PatientSignup = () => {
         // Step 2: Create user metadata document
         await setDoc(doc(db, "users", authUser.uid), {
           email: formData.email,
-          role: "patient",
+          role: "provider",
+          providerRole: "pharmacy",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
 
         // Step 3: Create detailed profile
-        await setDoc(doc(db, "patients", authUser.uid), {
-          fullName: formData.fullName,
-          dob: formData.dob || null,
-          gender: formData.gender || null,
-          bloodGroup: formData.bloodGroup || null,
+        await setDoc(doc(db, "providers_pharmacies", authUser.uid), {
+          pharmacyName: formData.pharmacyName,
+          pharmacyLicenseNumber: formData.pharmacyLicenseNumber || null,
+          pharmacyAddress: formData.pharmacyAddress || null,
+          pharmacyLat: formData.pharmacyLat || null,
+          pharmacyLng: formData.pharmacyLng || null,
+          pharmacyOpeningHours: formData.pharmacyOpeningHours || null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -69,10 +85,18 @@ const PatientSignup = () => {
         // Step 4: Link phone if provided
         if (formData.phone) {
           try {
-            await linkPhoneToCurrentUser(formData.phone);
+            const confirmation = await startPhoneLinking(formData.phone);
+            setPendingConfirmation(confirmation);
+            setOtpOpen(true);
+            await new Promise((resolve) => {
+              const check = () => {
+                if (!otpOpen) resolve();
+                else setTimeout(check, 100);
+              };
+              check();
+            });
           } catch (e) {
-            console.warn("Phone linking failed:", e);
-            // Non-critical error, continue with signup
+            console.warn("Phone linking start failed:", e);
           }
         }
 
@@ -97,39 +121,58 @@ const PatientSignup = () => {
     }
   };
 
+  const handleOtpSubmit = async (code) => {
+    if (!pendingConfirmation) {
+      setOtpOpen(false);
+      return;
+    }
+    try {
+      setIsOtpSubmitting(true);
+      await pendingConfirmation.confirm(code);
+      setPendingConfirmation(null);
+      setOtpOpen(false);
+    } catch (e) {
+      setIsOtpSubmitting(false);
+      setError(e.message || "Invalid OTP. Please try again.");
+    } finally {
+      setIsOtpSubmitting(false);
+    }
+  };
+
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-50 py-12">
       <div className="max-w-md w-full px-6">
         <div className="bg-white rounded-xl shadow-md p-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-1">
-            Create a Patient Account
+            Create a Pharmacy Account
           </h1>
           <p className="text-sm text-slate-500 mb-6">
-            Sign up to manage your health with HealTech.
+            Sell medicines and manage orders with HealTech.
           </p>
 
           <form onSubmit={handleSignUp} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">
-                Full Name
+                Pharmacy Name
               </label>
               <input
                 type="text"
-                name="fullName"
-                value={formData.fullName}
+                name="pharmacyName"
+                value={formData.pharmacyName}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, fullName: e.target.value }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    pharmacyName: e.target.value,
+                  }))
                 }
-                placeholder="John Doe"
+                placeholder="City Pharmacy"
                 className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Email Address
-              </label>
+              <label className="block text-sm font-medium mb-2">Email</label>
               <input
                 type="email"
                 name="email"
@@ -159,64 +202,60 @@ const PatientSignup = () => {
               />
             </div>
 
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium mb-2">
-                  Date of Birth
-                </label>
-                <input
-                  type="date"
-                  name="dob"
-                  value={formData.dob}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, dob: e.target.value }))
-                  }
-                  className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium mb-2">Gender</label>
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, gender: e.target.value }))
-                  }
-                  className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                >
-                  <option value="">Select...</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-            </div>
-
             <div>
               <label className="block text-sm font-medium mb-2">
-                Blood Group
+                Pharmacy License Number
               </label>
-              <select
-                name="bloodGroup"
-                value={formData.bloodGroup}
+              <input
+                type="text"
+                name="pharmacyLicenseNumber"
+                value={formData.pharmacyLicenseNumber}
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    bloodGroup: e.target.value,
+                    pharmacyLicenseNumber: e.target.value,
                   }))
                 }
+                placeholder="License Number"
                 className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-              >
-                <option value="">Select...</option>
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="O+">O+</option>
-                <option value="O-">O-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
-              </select>
+              />
+            </div>
+
+            <AddressPicker
+              label="Address"
+              placeholder="Full pharmacy address"
+              address={formData.pharmacyAddress}
+              onChange={(addr) =>
+                setFormData((prev) => ({ ...prev, pharmacyAddress: addr }))
+              }
+              lat={formData.pharmacyLat}
+              lng={formData.pharmacyLng}
+              onLocationChange={({ lat, lng }) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  pharmacyLat: lat,
+                  pharmacyLng: lng,
+                }))
+              }
+            />
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Opening Hours
+              </label>
+              <input
+                type="text"
+                name="pharmacyOpeningHours"
+                value={formData.pharmacyOpeningHours}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    pharmacyOpeningHours: e.target.value,
+                  }))
+                }
+                placeholder="e.g. 9 AM - 9 PM"
+                className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
+              />
             </div>
 
             <div>
@@ -256,14 +295,21 @@ const PatientSignup = () => {
               />
             </div>
 
-            {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+            {(error || (!isValid() && submitAttempted)) && (
+              <p className="text-sm text-red-600 mt-2">
+                {error ||
+                  "Please fill all required fields and ensure passwords match."}
+              </p>
+            )}
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || (!isValid() && submitAttempted)}
               className={`w-full ${
                 isLoading
                   ? "bg-gray-400 cursor-not-allowed"
+                  : !isValid() && submitAttempted
+                  ? "bg-slate-300 cursor-not-allowed"
                   : "bg-green-600 hover:bg-green-700"
               } text-white px-4 py-2 rounded-md flex items-center justify-center`}
             >
@@ -305,8 +351,15 @@ const PatientSignup = () => {
           </p>
         </div>
       </div>
+      <OtpModal
+        open={otpOpen}
+        phone={formData.phone}
+        onSubmit={handleOtpSubmit}
+        onClose={() => setOtpOpen(false)}
+        isSubmitting={isOtpSubmitting}
+      />
     </main>
   );
 };
 
-export default PatientSignup;
+export default PharmacySignup;

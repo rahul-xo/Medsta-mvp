@@ -5,7 +5,8 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import AddressPicker from '/src/Components/common/AddressPicker.jsx';
 import ToggleSwitch from '/src/Components/common/ToggleSwitch.jsx';
-import { linkPhoneToCurrentUser } from '/src/utils/phoneAuth.js';
+import OtpModal from '/src/Components/common/OtpModal.jsx';
+import { startPhoneLinking } from '/src/utils/phoneAuth.js';
 
 const DiagnosticCenterSignup = () => {
   const [formData, setFormData] = useState({
@@ -23,6 +24,11 @@ const DiagnosticCenterSignup = () => {
     confirmPassword: '',
   });
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [isOtpSubmitting, setIsOtpSubmitting] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState(null);
   const navigate = useNavigate();
 
   const isValid = () => {
@@ -38,9 +44,11 @@ const DiagnosticCenterSignup = () => {
   const handleSignUp = async (e) => {
     e.preventDefault();
     setSubmitAttempted(true);
+    setError(null);
     if (!isValid()) return;
 
     try {
+      setIsLoading(true);
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
 
@@ -68,15 +76,44 @@ const DiagnosticCenterSignup = () => {
       });
       if (formData.phone) {
         try {
-          await linkPhoneToCurrentUser(formData.phone);
+          const confirmation = await startPhoneLinking(formData.phone);
+          setPendingConfirmation(confirmation);
+          setOtpOpen(true);
+          await new Promise((resolve) => {
+            const check = () => {
+              if (!otpOpen) resolve();
+              else setTimeout(check, 100);
+            };
+            check();
+          });
         } catch (e) {
-          console.warn('Phone linking failed:', e);
+          console.warn('Phone linking start failed:', e);
         }
       }
+      setIsLoading(false);
       navigate('/login');
     } catch (error) {
       console.error('Error signing up:', error);
-      alert(`Sign up failed: ${error.message}`);
+      setError(error.message || 'Sign up failed');
+      setIsLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async (code) => {
+    if (!pendingConfirmation) {
+      setOtpOpen(false);
+      return;
+    }
+    try {
+      setIsOtpSubmitting(true);
+      await pendingConfirmation.confirm(code);
+      setPendingConfirmation(null);
+      setOtpOpen(false);
+    } catch (e) {
+      setIsOtpSubmitting(false);
+      setError(e.message || 'Invalid OTP. Please try again.');
+    } finally {
+      setIsOtpSubmitting(false);
     }
   };
 
@@ -211,6 +248,13 @@ const DiagnosticCenterSignup = () => {
           <p className="text-slate-600 mt-4 text-center">Already have an account? <Link to="/login" className="text-blue-600 hover:underline">Log in</Link></p>
         </div>
       </div>
+      <OtpModal
+        open={otpOpen}
+        phone={formData.phone}
+        onSubmit={handleOtpSubmit}
+        onClose={() => setOtpOpen(false)}
+        isSubmitting={isOtpSubmitting}
+      />
     </main>
   );
 };

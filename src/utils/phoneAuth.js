@@ -3,7 +3,7 @@ import { auth } from '/src/firebase.js';
 
 let recaptchaInitialized = false;
 
-function ensureRecaptcha() {
+export function ensureRecaptcha() {
   if (recaptchaInitialized) return;
   if (!document.getElementById('recaptcha-container')) {
     const div = document.createElement('div');
@@ -30,4 +30,13 @@ export async function linkPhoneToCurrentUser(phoneNumber) {
   if (!code) throw new Error('Verification code not provided');
   await confirmation.confirm(code);
   return true;
+}
+
+// Starts phone linking and returns the ConfirmationResult; caller should get the OTP code via UI and call confirm(code)
+export async function startPhoneLinking(phoneNumber) {
+  if (!auth.currentUser) throw new Error('No authenticated user to link phone to');
+  ensureRecaptcha();
+  const verifier = window.recaptchaVerifier;
+  const confirmation = await linkWithPhoneNumber(auth.currentUser, phoneNumber, verifier);
+  return confirmation;
 }

@@ -2,45 +2,40 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { auth, db } from "/src/firebase.js";
 import { createUserWithEmailAndPassword } from "firebase/auth";
+import { startPhoneLinking } from "/src/utils/phoneAuth.js";
+import OtpModal from "/src/Components/common/OtpModal.jsx";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import AddressPicker from "/src/Components/common/AddressPicker.jsx";
-import { linkPhoneToCurrentUser } from "/src/utils/phoneAuth.js";
 
-const PharmacySignup = () => {
+const PatientSignup = () => {
   const [formData, setFormData] = useState({
-    pharmacyName: "",
+    fullName: "",
     email: "",
-    phone: "",
-    pharmacyLicenseNumber: "",
-    pharmacyAddress: "",
-    pharmacyLat: null,
-    pharmacyLng: null,
-    pharmacyOpeningHours: "",
     password: "",
     confirmPassword: "",
+    phone: "",
+    dob: "",
+    gender: "",
+    bloodGroup: "",
   });
-  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [isOtpSubmitting, setIsOtpSubmitting] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState(null);
   const navigate = useNavigate();
-
-  const isValid = () => {
-    return !!(
-      formData.pharmacyName &&
-      formData.email &&
-      formData.pharmacyAddress &&
-      formData.password.length >= 6 &&
-      formData.password === formData.confirmPassword
-    );
-  };
 
   const handleSignUp = async (e) => {
     e.preventDefault();
-    setSubmitAttempted(true);
+    const { password, confirmPassword } = formData;
     setError(null);
 
-    if (!isValid()) {
-      setError("Please fill in all required fields and ensure passwords match");
+    // Basic password validations
+    if (!password || password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
       return;
     }
 
@@ -60,20 +55,17 @@ const PharmacySignup = () => {
         // Step 2: Create user metadata document
         await setDoc(doc(db, "users", authUser.uid), {
           email: formData.email,
-          role: "provider",
-          providerRole: "pharmacy",
+          role: "patient",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
 
         // Step 3: Create detailed profile
-        await setDoc(doc(db, "providers_pharmacies", authUser.uid), {
-          pharmacyName: formData.pharmacyName,
-          pharmacyLicenseNumber: formData.pharmacyLicenseNumber || null,
-          pharmacyAddress: formData.pharmacyAddress || null,
-          pharmacyLat: formData.pharmacyLat || null,
-          pharmacyLng: formData.pharmacyLng || null,
-          pharmacyOpeningHours: formData.pharmacyOpeningHours || null,
+        await setDoc(doc(db, "patients", authUser.uid), {
+          fullName: formData.fullName,
+          dob: formData.dob || null,
+          gender: formData.gender || null,
+          bloodGroup: formData.bloodGroup || null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -81,10 +73,21 @@ const PharmacySignup = () => {
         // Step 4: Link phone if provided
         if (formData.phone) {
           try {
-            await linkPhoneToCurrentUser(formData.phone);
+            // Start phone linking and open OTP modal
+            const confirmation = await startPhoneLinking(formData.phone);
+            setPendingConfirmation(confirmation);
+            setOtpOpen(true);
+
+            // Suspend here until OTP is handled
+            await new Promise((resolve) => {
+              const check = () => {
+                if (!otpOpen) resolve();
+                else setTimeout(check, 100);
+              };
+              check();
+            });
           } catch (e) {
-            console.warn("Phone linking failed:", e);
-            // Non-critical error, continue with signup
+            console.warn("Phone linking start failed:", e);
           }
         }
 
@@ -109,40 +112,57 @@ const PharmacySignup = () => {
     }
   };
 
+  const handleOtpSubmit = async (code) => {
+    if (!pendingConfirmation) {
+      setOtpOpen(false);
+      return;
+    }
+    try {
+      setIsOtpSubmitting(true);
+      await pendingConfirmation.confirm(code);
+      setPendingConfirmation(null);
+      setOtpOpen(false);
+    } catch (e) {
+      setIsOtpSubmitting(false);
+      setError(e.message || "Invalid OTP. Please try again.");
+    } finally {
+      setIsOtpSubmitting(false);
+    }
+  };
+
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-50 py-12">
       <div className="max-w-md w-full px-6">
         <div className="bg-white rounded-xl shadow-md p-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-1">
-            Create a Pharmacy Account
+            Create a Patient Account
           </h1>
           <p className="text-sm text-slate-500 mb-6">
-            Sell medicines and manage orders with HealTech.
+            Sign up to manage your health with HealTech.
           </p>
 
           <form onSubmit={handleSignUp} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">
-                Pharmacy Name
+                Full Name
               </label>
               <input
                 type="text"
-                name="pharmacyName"
-                value={formData.pharmacyName}
+                name="fullName"
+                value={formData.fullName}
                 onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    pharmacyName: e.target.value,
-                  }))
+                  setFormData((prev) => ({ ...prev, fullName: e.target.value }))
                 }
-                placeholder="City Pharmacy"
+                placeholder="John Doe"
                 className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Email</label>
+              <label className="block text-sm font-medium mb-2">
+                Email Address
+              </label>
               <input
                 type="email"
                 name="email"
@@ -172,60 +192,64 @@ const PharmacySignup = () => {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Pharmacy License Number
-              </label>
-              <input
-                type="text"
-                name="pharmacyLicenseNumber"
-                value={formData.pharmacyLicenseNumber}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    pharmacyLicenseNumber: e.target.value,
-                  }))
-                }
-                placeholder="License Number"
-                className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-              />
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-2">
+                  Date of Birth
+                </label>
+                <input
+                  type="date"
+                  name="dob"
+                  value={formData.dob}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, dob: e.target.value }))
+                  }
+                  className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-2">Gender</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, gender: e.target.value }))
+                  }
+                  className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
+                >
+                  <option value="">Select...</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
             </div>
 
-            <AddressPicker
-              label="Address"
-              placeholder="Full pharmacy address"
-              address={formData.pharmacyAddress}
-              onChange={(addr) =>
-                setFormData((prev) => ({ ...prev, pharmacyAddress: addr }))
-              }
-              lat={formData.pharmacyLat}
-              lng={formData.pharmacyLng}
-              onLocationChange={({ lat, lng }) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  pharmacyLat: lat,
-                  pharmacyLng: lng,
-                }))
-              }
-            />
-
             <div>
               <label className="block text-sm font-medium mb-2">
-                Opening Hours
+                Blood Group
               </label>
-              <input
-                type="text"
-                name="pharmacyOpeningHours"
-                value={formData.pharmacyOpeningHours}
+              <select
+                name="bloodGroup"
+                value={formData.bloodGroup}
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    pharmacyOpeningHours: e.target.value,
+                    bloodGroup: e.target.value,
                   }))
                 }
-                placeholder="e.g. 9 AM - 9 PM"
                 className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-              />
+              >
+                <option value="">Select...</option>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+              </select>
             </div>
 
             <div>
@@ -265,21 +289,14 @@ const PharmacySignup = () => {
               />
             </div>
 
-            {(error || (!isValid() && submitAttempted)) && (
-              <p className="text-sm text-red-600 mt-2">
-                {error ||
-                  "Please fill all required fields and ensure passwords match."}
-              </p>
-            )}
+            {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
 
             <button
               type="submit"
-              disabled={isLoading || (!isValid() && submitAttempted)}
+              disabled={isLoading}
               className={`w-full ${
                 isLoading
                   ? "bg-gray-400 cursor-not-allowed"
-                  : !isValid() && submitAttempted
-                  ? "bg-slate-300 cursor-not-allowed"
                   : "bg-green-600 hover:bg-green-700"
               } text-white px-4 py-2 rounded-md flex items-center justify-center`}
             >
@@ -321,8 +338,21 @@ const PharmacySignup = () => {
           </p>
         </div>
       </div>
+      <OtpModal
+        open={otpOpen}
+        phone={formData.phone}
+        onSubmit={handleOtpSubmit}
+        onClose={() => setOtpOpen(false)}
+        isSubmitting={isOtpSubmitting}
+      />
     </main>
   );
 };
 
-export default PharmacySignup;
+export default PatientSignup;
+// OTP Modal mounted at page root so it can overlay content
+// Place component after export default to keep render tree lean; JSX below returns null when closed
+/* eslint-disable */
+function OtpOverlay() { return null }
+
+
