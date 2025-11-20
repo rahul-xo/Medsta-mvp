@@ -42,7 +42,7 @@ export const useLocationStore = create((set) => ({
       const lon = pos.coords.longitude;
       let place = null;
       try {
-        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`;
         const res = await fetch(url, {
           headers: {
             // Public reverse geocoding; set an identifiable referer to be polite.
@@ -64,9 +64,10 @@ export const useLocationStore = create((set) => ({
       }
 
       const coords = { lat, lon };
-      set({ coords, place: place || null, loading: false });
+      const fallback = `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+      set({ coords, place: place || fallback, loading: false });
       try {
-        localStorage.setItem('medsta.location', JSON.stringify({ coords, place }));
+        localStorage.setItem('medsta.location', JSON.stringify({ coords, place: place || fallback }));
       } catch {
         // ignore storage write errors
       }

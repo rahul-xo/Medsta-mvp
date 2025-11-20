@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { auth, db } from '@/Services/firebase.js';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { ensureAuthReady } from '@/Services/auth.helpers.js';
+import { runFirebaseDiagnostics } from '@/Services/firebaseDiagnostics.js';
 import { doc, getDoc } from 'firebase/firestore';
 
 const PatientLogin = () => {
@@ -16,10 +18,12 @@ const PatientLogin = () => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      await ensureAuthReady(auth, user.uid);
 
       const snap = await getDoc(doc(db, 'users', user.uid));
       if (snap.exists()) {
         const data = snap.data();
+        try { localStorage.setItem('medsta.role', data.role || ''); } catch {}
         if (data.role === 'patient') {
           navigate('/patient-dashboard');
         } else if (data.role === 'provider') {
@@ -30,6 +34,7 @@ const PatientLogin = () => {
       } else {
         navigate('/');
       }
+      runFirebaseDiagnostics().catch(() => {});
     } catch (err) {
       alert('Failed to log in. Please check your credentials.');
       console.error(err);

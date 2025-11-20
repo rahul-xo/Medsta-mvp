@@ -13,6 +13,7 @@ export const useAuthStore = create((set, get) => ({
     set({ initialized: true });
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
+        try { localStorage.removeItem('medsta.role'); } catch {}
         set({ user: null, role: null, loading: false });
         return;
       }
@@ -22,9 +23,14 @@ export const useAuthStore = create((set, get) => ({
         if (snap.exists()) {
           const data = snap.data();
           role = data.role || null;
+          try { localStorage.setItem('medsta.role', role || ''); } catch {}
         }
       } catch {
-        // ignore
+        // If Firestore fetch fails (offline etc), fall back to cached role
+        try {
+          const cached = localStorage.getItem('medsta.role');
+          if (cached) role = cached || null;
+        } catch { /* ignore */ }
       }
       set({ user, role, loading: false });
     });

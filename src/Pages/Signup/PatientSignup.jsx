@@ -5,6 +5,8 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { startPhoneLinking } from "@/Services/phone.service.js";
 import OtpModal from "/src/Components/common/OtpModal.jsx";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { ensureAuthReady } from "@/Services/auth.helpers.js";
+import { runFirebaseDiagnostics } from "@/Services/firebaseDiagnostics.js";
 
 const PatientSignup = () => {
   const [formData, setFormData] = useState({
@@ -50,6 +52,7 @@ const PatientSignup = () => {
         formData.password
       );
       authUser = userCredential.user;
+      await ensureAuthReady(auth, authUser.uid);
 
       try {
         // Step 2: Create user metadata document
@@ -91,7 +94,8 @@ const PatientSignup = () => {
           }
         }
 
-        // All operations succeeded
+        // Diagnostics (non-blocking)
+        runFirebaseDiagnostics().catch(() => {});
         setIsLoading(false);
         navigate("/login");
       } catch (firestoreError) {

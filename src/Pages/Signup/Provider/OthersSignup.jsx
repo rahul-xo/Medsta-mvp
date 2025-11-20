@@ -6,6 +6,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import AddressPicker from '/src/Components/common/AddressPicker.jsx';
 import OtpModal from '/src/Components/common/OtpModal.jsx';
 import { startPhoneLinking } from '@/Services/phone.service.js';
+import { ensureAuthReady } from '@/Services/auth.helpers.js';
 
 const OthersSignup = () => {
   const [formData, setFormData] = useState({
@@ -50,6 +51,7 @@ const OthersSignup = () => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       authUser = userCredential.user;
+      await ensureAuthReady(auth, authUser.uid);
 
       try {
         await setDoc(doc(db, 'users', authUser.uid), {

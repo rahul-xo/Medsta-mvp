@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { auth, db } from '@/Services/firebase.js';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { ensureAuthReady } from '@/Services/auth.helpers.js';
 
 const DeliveryAgentSignup = () => {
   const [formData, setFormData] = useState({
@@ -35,6 +36,7 @@ const DeliveryAgentSignup = () => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
+      await ensureAuthReady(auth, user.uid);
 
       // users: routing metadata
       await setDoc(doc(db, 'users', user.uid), {

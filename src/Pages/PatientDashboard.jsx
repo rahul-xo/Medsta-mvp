@@ -14,14 +14,22 @@ import {
   startAfter,
   Timestamp,
 } from 'firebase/firestore';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/Stores/authStore.js';
 import { useLocationStore } from '@/Stores/locationStore.js';
-import { FaRegCalendarAlt, FaPills, FaFlask, FaAmbulance, FaRobot, FaFileAlt, FaDownload, FaShoppingCart } from 'react-icons/fa';
+import { FaRegCalendarAlt, FaPills, FaFlask, FaAmbulance, FaRobot, FaFileAlt, FaDownload, FaShoppingCart, FaUserCircle, FaUserMd, FaHospital, FaSearch } from 'react-icons/fa';
 
 const PatientDashboard = () => {
   const user = useAuthStore((s) => s.user);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'appointments' | 'orders' | 'lab-tests' | 'reports' | 'cart'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'appointments' | 'orders' | 'tests' | 'reports' | 'cart'
+  const location = useLocation();
+
+  // Sync tab from URL query param ?tab=
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const t = params.get('tab');
+    if (t) setActiveTab(t);
+  }, [location.search]);
   const requestLocation = useLocationStore((s) => s.requestLocation);
   const initLocation = useLocationStore((s) => s.initFromStorage);
 
@@ -115,37 +123,57 @@ const PatientDashboard = () => {
       })();
     }, [user?.uid]);
 
-    // Fetchers
+    // Fetchers with offline-safe handling
     useEffect(() => {
       if (!user?.uid) return;
-      (async () => {
-        const nowTs = Timestamp.fromDate(new Date());
-        const qUpcoming = query(
-          collection(db, 'patient_lab_tests'),
-          where('userId', '==', user.uid),
-          where('scheduledAt', '>=', nowTs),
-          orderBy('scheduledAt', 'asc'),
-          limit(5)
-        );
-        const snap = await getDocs(qUpcoming);
-        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setLabUpcoming(items);
-        setLabUpcomingLast(snap.docs[snap.docs.length - 1] || null);
+      let cancelled = false;
+      const fetchAll = async () => {
+        try {
+          const nowTs = Timestamp.fromDate(new Date());
+          const qUpcoming = query(
+            collection(db, 'patient_lab_tests'),
+            where('userId', '==', user.uid),
+            where('scheduledAt', '>=', nowTs),
+            orderBy('scheduledAt', 'asc'),
+            limit(5)
+          );
+          const snap = await getDocs(qUpcoming);
+          if (cancelled) return;
+          const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setLabUpcoming(items);
+          setLabUpcomingLast(snap.docs[snap.docs.length - 1] || null);
 
-        const qReports = query(
-          collection(db, 'patient_reports'),
-          where('userId', '==', user.uid),
-          orderBy('date', 'desc'),
-          limit(5)
-        );
-        const rSnap = await getDocs(qReports);
-        setReportsData(rSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setReportsLast(rSnap.docs[rSnap.docs.length - 1] || null);
+          const qReports = query(
+            collection(db, 'patient_reports'),
+            where('userId', '==', user.uid),
+            orderBy('date', 'desc'),
+            limit(5)
+          );
+          const rSnap = await getDocs(qReports);
+          if (cancelled) return;
+          setReportsData(rSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+          setReportsLast(rSnap.docs[rSnap.docs.length - 1] || null);
 
-        const cartRef = doc(db, 'patient_carts', user.uid);
-        const cDoc = await getDoc(cartRef);
-        setCartItems(cDoc.exists() ? cDoc.data().items || [] : []);
-      })();
+          const cartRef = doc(db, 'patient_carts', user.uid);
+          const cDoc = await getDoc(cartRef);
+          if (cancelled) return;
+          setCartItems(cDoc.exists() ? cDoc.data().items || [] : []);
+        } catch (err) {
+          // Handle offline or transient errors gracefully
+          if (err?.code === 'unavailable' || err?.message?.includes('offline')) {
+            // Try again when the browser comes back online
+            const onOnline = () => {
+              window.removeEventListener('online', onOnline);
+              if (!cancelled) fetchAll();
+            };
+            window.addEventListener('online', onOnline);
+          } else {
+            console.warn('Dashboard data fetch error:', err);
+          }
+        }
+      };
+      fetchAll();
+      return () => { cancelled = true; };
     }, [user?.uid]);
 
     const loadMoreUpcoming = async () => {
@@ -179,43 +207,93 @@ const PatientDashboard = () => {
     };
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-20">
+    <div className="min-h-screen bg-slate-50 pt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Hero / Greeting */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="p-8 md:p-10 flex flex-col justify-between">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
-                Welcome back, {firstName}!
-              </h1>
-              <p className="mt-3 text-gray-600">Here's a summary of your health journey.</p>
-            </div>
-            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Link to="/book-appointment" className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-700 transition">
-                <FaRegCalendarAlt /> Book Appointment
-              </Link>
-              <Link to="/medicine-ordering" className="flex items-center justify-center gap-2 bg-blue-100 text-blue-700 px-4 py-3 rounded-lg font-medium hover:bg-blue-200 transition">
-                <FaPills /> Order Medicines
-              </Link>
-              <Link to="/diagnostic-tests" className="flex items-center justify-center gap-2 bg-blue-100 text-blue-700 px-4 py-3 rounded-lg font-medium hover:bg-blue-200 transition">
-                <FaFlask /> Book Lab Test
-              </Link>
-              <Link to="/multivendor-workplace" className="flex items-center justify-center gap-2 bg-blue-100 text-blue-700 px-4 py-3 rounded-lg font-medium hover:bg-blue-200 transition">
-                <FaAmbulance /> Book Transport
-              </Link>
-              <Link to="/about" className="sm:col-span-2 mt-1 flex items-center justify-center gap-2 bg-indigo-100 text-indigo-700 px-4 py-3 rounded-lg font-medium hover:bg-indigo-200 transition">
-                <FaRobot /> Medsta-AI
-              </Link>
-            </div>
-          </div>
-          {/* Hero image placeholder */}
-          <div className="relative bg-linear-to-br from-sky-200 via-blue-200 to-indigo-200">
-            <img
-              src="/Images/hero-bubbles.jpg"
-              alt=""
-              className="w-full h-full object-cover opacity-80 hidden md:block"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        {/* Top search bar */}
+        <div className="mb-4 flex flex-col items-center">
+          <div className="relative w-full max-w-3xl mx-auto">
+            <input
+              type="text"
+              placeholder="Search for doctors, medicines, tests, diagnostics and more..."
+              className="w-full h-12 rounded-2xl bg-white shadow-sm pl-5 pr-12 text-slate-700 placeholder:text-slate-400 border border-slate-200"
             />
+            <FaSearch className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" />
+          </div>
+          {/* Small nav below search */}
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-8 text-sm">
+            <Link to="/book-appointment" className="inline-flex items-center gap-2 text-slate-600 hover:text-sky-700"><FaUserMd className="text-sky-600" /> Doctors</Link>
+            <Link to="/medicine-ordering" className="inline-flex items-center gap-2 text-slate-600 hover:text-emerald-700"><FaPills className="text-rose-500" /> Medicines</Link>
+            <Link to="/diagnostic-tests" className="inline-flex items-center gap-2 text-slate-600 hover:text-indigo-700"><FaFlask className="text-indigo-500" /> Tests</Link>
+            <Link to="/about" className="inline-flex items-center gap-2 text-slate-600 hover:text-purple-700"><FaHospital className="text-purple-500" /> Hospitals</Link>
+          </div>
+        </div>
+        {/* Header summary block matching the reference */}
+        <section className="bg-gradient-to-r from-sky-50 to-emerald-50 rounded-2xl shadow-sm p-6 sm:p-8">
+          {/* 12-col grid to keep greeting + 3 cards on one row */}
+          <div className="grid grid-cols-12 gap-4">
+            {/* Greeting card */}
+            <div className="col-span-12 lg:col-span-6 bg-white/70 rounded-xl p-6 sm:p-7 border border-white/60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center text-sky-600 text-lg font-semibold">🧑</div>
+                <div className="text-green-500 text-xs">●</div>
+              </div>
+              <h1 className="mt-3 text-2xl sm:text-3xl font-extrabold text-slate-900">Welcome back, {firstName}!</h1>
+              <p className="mt-2 text-sm text-slate-600">Here's your health overview for today</p>
+              <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
+                <span>Last updated: 2 min ago</span>
+                <span>•</span>
+                <span>All systems healthy</span>
+              </div>
+            </div>
+
+            {/* Appointments */}
+            <SummaryCard
+              title="Appointments"
+              primary={`${labUpcoming.length || 0} Upcoming`}
+              secondary={labUpcoming[0]?.scheduledAt ? `Next: ${formatDateTime(labUpcoming[0].scheduledAt)}` : 'No upcoming'}
+              icon={<FaRegCalendarAlt className="text-sky-600" />}
+              className="col-span-12 sm:col-span-6 lg:col-span-2"
+            />
+
+            {/* Orders */}
+            <SummaryCard
+              title="Orders"
+              primary={`${Math.max(cartItems.length, 0)} Active Orders`}
+              secondary={cartItems.length ? '1 arriving today' : 'No active orders'}
+              icon={<FaPills className="text-emerald-600" />}
+              className="col-span-12 sm:col-span-6 lg:col-span-2"
+            />
+
+            {/* Reports */}
+            <SummaryCard
+              title="Reports"
+              primary={`${reportsData.length || 0} Reports`}
+              secondary={reportsData.length ? 'Ready in 2 hours' : 'No pending reports'}
+              icon={<FaFileAlt className="text-rose-600" />}
+              className="col-span-12 sm:col-span-6 lg:col-span-2"
+            />
+          </div>
+        </section>
+
+        {/* Promo banner */}
+        <section className="mt-6 bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 rounded-2xl shadow-md p-8 text-white">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-2xl">📚</div>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide">Limited Time • Ends in 2 days</div>
+                <h3 className="text-2xl sm:text-3xl font-extrabold">Exclusive Offer</h3>
+                <p className="text-white/90 mt-1">Get up to 50% off on health checkups</p>
+                <p className="text-white/70 text-xs">Valid for premium members only</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="text-right hidden sm:block">
+                <div className="text-5xl font-extrabold">50%</div>
+                <div className="-mt-2 text-white/90 font-semibold">OFF</div>
+              </div>
+              <Link to="/diagnostic-tests" className="bg-white text-sky-700 hover:bg-slate-100 font-semibold px-6 py-3 rounded-xl">Claim Now →</Link>
+            </div>
           </div>
         </section>
 
@@ -227,7 +305,7 @@ const PatientDashboard = () => {
                 { id: 'overview', label: 'Overview' },
                 { id: 'appointments', label: 'Appointments' },
                 { id: 'orders', label: 'Orders' },
-                { id: 'lab-tests', label: 'Lab Tests' },
+                { id: 'tests', label: 'Tests' },
                 { id: 'reports', label: 'Reports' },
                 { id: 'cart', label: 'Cart' },
               ].map((tab) => (
@@ -251,34 +329,70 @@ const PatientDashboard = () => {
 
         {/* Tab panels */}
         {activeTab === 'overview' && (
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Appointments */}
-            <div className="bg-white rounded-xl shadow-sm p-8 flex flex-col items-center justify-center text-center min-h-[180px]">
-              <FaRegCalendarAlt className="text-3xl text-gray-400" />
-              <p className="mt-3 text-gray-600">No upcoming appointments.</p>
-              <Link to="/book-appointment" className="mt-2 text-blue-600 font-medium hover:underline">Book one now</Link>
-            </div>
-            {/* Orders */}
-            <div className="bg-white rounded-xl shadow-sm p-8 flex flex-col items-center justify-center text-center min-h-[180px]">
-              <FaPills className="text-3xl text-gray-400" />
-              <p className="mt-3 text-gray-600">No active medicine orders.</p>
-              <Link to="/medicine-ordering" className="mt-2 text-blue-600 font-medium hover:underline">Order now</Link>
-            </div>
-            {/* Upcoming test card */}
-            <aside className="bg-white rounded-xl shadow-sm p-6">
-              <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                <span className="inline-block w-5 h-0.5 bg-blue-600 mr-1" /> Upcoming Test
-              </h3>
-              <div className="mt-4 border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium text-gray-900">Complete Blood Count (CBC)</p>
-                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">At-Center</span>
+          <>
+            {/* Three primary cards exactly like the reference */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Upcoming Appointment */}
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h3 className="text-slate-900 font-semibold">Upcoming Appointment</h3>
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-sky-50 flex items-center justify-center text-sky-600">
+                    <FaUserCircle className="text-2xl" />
+                  </div>
+                  <div>
+                    <div className="text-slate-900 font-medium">Dr. Sarah Johnson</div>
+                    <div className="text-slate-500 text-sm">Tomorrow, 10:30 AM</div>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600 mt-1">At: City Central Imaging</p>
-                <p className="text-sm text-gray-600 mt-2">2024-08-18 at 9:00 AM</p>
               </div>
-            </aside>
-          </div>
+
+              {/* Active Orders */}
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h3 className="text-slate-900 font-semibold">Active Orders</h3>
+                <div className="mt-3 text-slate-600 text-sm">Order #12345 <span className="text-emerald-600 font-semibold float-right">In Transit</span></div>
+                <div className="mt-3 h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="h-full w-[60%] bg-emerald-500"></div>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">Expected delivery: Today</div>
+              </div>
+
+              {/* Upcoming Tests */}
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h3 className="text-slate-900 font-semibold">Upcoming Tests</h3>
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                    <FaFlask className="text-xl" />
+                  </div>
+                  <div>
+                    <div className="text-slate-900 font-medium">Blood Test</div>
+                    <div className="text-slate-500 text-sm">Friday, 9:00 AM</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* OFFERS grid */}
+            <section className="mt-10">
+              <h2 className="text-center text-2xl font-extrabold text-slate-900 tracking-tight">OFFERS</h2>
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="rounded-2xl p-8 text-white bg-gradient-to-br from-sky-500 to-teal-500 shadow-sm">
+                  <div className="text-5xl font-extrabold">50%</div>
+                  <div className="mt-1 text-white/90">Off on health checkups</div>
+                  <Link to="/diagnostic-tests" className="mt-6 inline-flex items-center gap-2 bg-white text-sky-700 hover:bg-slate-100 font-semibold px-4 py-2 rounded-xl">View Offer</Link>
+                </div>
+                <div className="rounded-2xl p-8 text-white bg-gradient-to-br from-emerald-500 to-lime-500 shadow-sm">
+                  <div className="text-5xl font-extrabold">30%</div>
+                  <div className="mt-1 text-white/90">Off on medicines</div>
+                  <Link to="/medicine-ordering" className="mt-6 inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-slate-100 font-semibold px-4 py-2 rounded-xl">View Offer</Link>
+                </div>
+                <div className="rounded-2xl p-8 text-white bg-gradient-to-br from-rose-500 to-orange-500 shadow-sm">
+                  <div className="text-5xl font-extrabold">25%</div>
+                  <div className="mt-1 text-white/90">Off on lab tests</div>
+                  <Link to="/diagnostic-tests" className="mt-6 inline-flex items-center gap-2 bg-white text-rose-700 hover:bg-slate-100 font-semibold px-4 py-2 rounded-xl">View Offer</Link>
+                </div>
+              </div>
+            </section>
+          </>
         )}
 
         {activeTab === 'appointments' && (
@@ -309,7 +423,7 @@ const PatientDashboard = () => {
           </section>
         )}
 
-        {activeTab === 'lab-tests' && (
+        {activeTab === 'tests' && (
           <section className="mt-6 bg-white rounded-xl shadow-sm p-6 sm:p-8">
             <h2 className="text-2xl font-semibold text-gray-900">Diagnostic Tests</h2>
             <p className="mt-1 text-gray-600">View your scheduled tests.</p>
@@ -419,12 +533,12 @@ const PatientDashboard = () => {
           </section>
         )}
 
-        {/* Providers banner - show on overview tab to avoid clutter */}
+        {/* Providers banner - keep lightweight */}
         {activeTab === 'overview' && (
-        <section className="mt-10 bg-white rounded-2xl shadow-sm p-10 text-center">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Medsta for Providers</h2>
-          <p className="mt-2 text-gray-600">Join our network and grow with us.</p>
-        </section>
+          <section className="mt-10 bg-white rounded-2xl shadow-sm p-10 text-center">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Medsta for Providers</h2>
+            <p className="mt-2 text-gray-600">Join our network and grow with us.</p>
+          </section>
         )}
       </div>
     </div>
@@ -432,4 +546,20 @@ const PatientDashboard = () => {
 };
 
 export default PatientDashboard;
+
+// Local component for summary cards
+const SummaryCard = ({ title, primary, secondary, icon, className = '' }) => (
+  <div className={`bg-white rounded-xl shadow-sm p-5 border border-slate-100 flex flex-col justify-between ${className}`}>
+    <div className="flex items-center gap-3">
+      <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-lg">
+        {icon}
+      </div>
+      <div className="text-sm text-slate-500">{title}</div>
+    </div>
+    <div className="mt-3">
+      <div className="text-xl font-extrabold text-slate-900">{primary}</div>
+      <div className="text-xs text-slate-500 mt-1">{secondary}</div>
+    </div>
+  </div>
+);
 

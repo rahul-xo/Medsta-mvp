@@ -8,6 +8,7 @@ import AddressPicker from "/src/Components/common/AddressPicker.jsx";
 import ToggleSwitch from "/src/Components/common/ToggleSwitch.jsx";
 import OtpModal from "/src/Components/common/OtpModal.jsx";
 import { startPhoneLinking } from "@/Services/phone.service.js";
+import { ensureAuthReady } from "@/Services/auth.helpers.js";
 
 const DoctorSignup = () => {
   const [formData, setFormData] = useState({
@@ -76,6 +77,7 @@ const DoctorSignup = () => {
         formData.password
       );
       authUser = userCredential.user;
+      await ensureAuthReady(auth, authUser.uid);
 
       try {
         // Step 2: Create user metadata document

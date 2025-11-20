@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, Link, useNavigate } from "react-router-dom";
-import { FaShoppingCart } from "react-icons/fa";
+import { FaShoppingCart, FaUserCircle } from "react-icons/fa";
 import { useAuthStore } from "@/Stores/authStore.js";
 import { useLocationStore } from "@/Stores/locationStore.js";
 import { FaMapMarkerAlt } from "react-icons/fa";
 
 const NavBar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
   const role = useAuthStore((s) => s.role);
   const doSignOut = useAuthStore((s) => s.signOut);
@@ -71,8 +72,8 @@ const NavBar = () => {
             </ul>
           </div>
 
-          {/* Right Side - Cart / Auth Buttons */}
-          <div className="hidden md:flex items-center gap-4">
+          {/* Right Side - Cart / Profile */}
+          <div className="hidden md:flex items-center gap-4 relative">
             {/* Location indicator */}
             <button
               onClick={requestLocation}
@@ -92,14 +93,8 @@ const NavBar = () => {
               <span>Cart</span>
             </NavLink>
 
-            {user ? (
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 text-white font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-red-600 transition-colors"
-              >
-                Logout
-              </button>
-            ) : (
+            {/* Auth: show login/signup OR compact profile icon */}
+            {!user ? (
               <>
                 <NavLink
                   to="/login"
@@ -114,14 +109,71 @@ const NavBar = () => {
                   Sign Up
                 </NavLink>
               </>
-            )}
-            {user && (
-              <NavLink
-                to={role === 'patient' ? '/patient-dashboard' : '/provider-dashboard'}
-                className="ml-2 bg-green-600 text-white font-semibold px-4 py-2 cursor-pointer rounded-md hover:bg-green-700 transition-colors"
-              >
-                Dashboard
-              </NavLink>
+            ) : (
+              <div className="ml-1">
+                <button
+                  onClick={() => setProfileOpen((v) => !v)}
+                  className="flex items-center gap-2 px-2 py-2 rounded-full hover:bg-gray-200"
+                  aria-haspopup="menu"
+                  aria-expanded={profileOpen}
+                >
+                  {/* Simple avatar icon; could be replaced with user.photoURL */}
+                  <FaUserCircle className="text-2xl text-gray-700" />
+                </button>
+                {profileOpen && (
+                  <div className="absolute right-0 top-12 w-56 bg-white rounded-md shadow-lg border border-gray-100 z-50 py-1">
+                    <NavLink
+                      to={role === 'patient' ? '/patient-dashboard' : '/provider-dashboard'}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      Profile Dashboard
+                    </NavLink>
+                    <NavLink
+                      to={role === 'patient' ? '/patient-dashboard?tab=orders' : '/provider-dashboard'}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      Orders
+                    </NavLink>
+                    <NavLink
+                      to="/policies"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      Manage Refund
+                    </NavLink>
+                    <NavLink
+                      to="/about"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      Need Help
+                    </NavLink>
+                    <NavLink
+                      to="/profile"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      Edit Profile
+                    </NavLink>
+                    <NavLink
+                      to="/about"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      Refer & Earn
+                    </NavLink>
+                    <div className="my-1 border-t border-gray-100" />
+                    <button
+                      onClick={() => { setProfileOpen(false); handleLogout(); }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -179,14 +231,7 @@ const NavBar = () => {
               <FaShoppingCart />
               <span>Cart</span>
             </NavLink>
-            {user ? (
-              <button
-                onClick={() => { handleLogout(); setIsMenuOpen(false); }} /* Close menu */
-                className="bg-red-500 text-white font-semibold px-4 py-2 rounded-md"
-              >
-                Logout
-              </button>
-            ) : (
+            {!user ? (
               <>
                 <Link
                   to="/login"
@@ -203,15 +248,22 @@ const NavBar = () => {
                   Sign Up
                 </Link>
               </>
-            )}
-            {user && (
-              <Link
-                to={role === 'patient' ? '/patient-dashboard' : '/provider-dashboard'}
-                onClick={() => setIsMenuOpen(false)} /* Close menu */
-                className="bg-green-600 text-white font-semibold px-4 py-2 rounded-md text-center"
-              >
-                Dashboard
-              </Link>
+            ) : (
+              <>
+                <Link
+                  to={role === 'patient' ? '/patient-dashboard' : '/provider-dashboard'}
+                  onClick={() => setIsMenuOpen(false)}
+                  className="bg-green-600 text-white font-semibold px-4 py-2 rounded-md text-center"
+                >
+                  Profile Dashboard
+                </Link>
+                <button
+                  onClick={() => { handleLogout(); setIsMenuOpen(false); }}
+                  className="bg-red-500 text-white font-semibold px-4 py-2 rounded-md"
+                >
+                  Logout
+                </button>
+              </>
             )}
           </div>
         </div>

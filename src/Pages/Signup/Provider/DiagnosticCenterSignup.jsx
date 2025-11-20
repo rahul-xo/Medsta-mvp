@@ -8,6 +8,7 @@ import AddressPicker from '/src/Components/common/AddressPicker.jsx';
 import ToggleSwitch from '/src/Components/common/ToggleSwitch.jsx';
 import OtpModal from '/src/Components/common/OtpModal.jsx';
 import { startPhoneLinking } from '@/Services/phone.service.js';
+import { ensureAuthReady } from '@/Services/auth.helpers.js';
 
 const DiagnosticCenterSignup = () => {
   const [formData, setFormData] = useState({
@@ -63,6 +64,7 @@ const DiagnosticCenterSignup = () => {
       setIsLoading(true);
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
+      await ensureAuthReady(auth, user.uid);
 
       // users metadata
       await setDoc(doc(db, 'users', user.uid), {

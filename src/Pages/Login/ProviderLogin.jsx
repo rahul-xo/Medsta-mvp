@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { auth, db } from '@/Services/firebase.js';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { ensureAuthReady } from '@/Services/auth.helpers.js';
 import { doc, getDoc } from 'firebase/firestore';
 
 const ProviderLogin = () => {
@@ -16,10 +17,12 @@ const ProviderLogin = () => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      await ensureAuthReady(auth, user.uid);
 
       const snap = await getDoc(doc(db, 'users', user.uid));
       if (snap.exists()) {
         const data = snap.data();
+        try { localStorage.setItem('medsta.role', data.role || ''); } catch {}
         if (data.role === 'provider') {
           navigate('/provider-dashboard');
         } else if (data.role === 'patient') {
