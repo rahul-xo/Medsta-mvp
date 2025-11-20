@@ -1,12 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { auth, db } from "@/Services/firebase.js";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { startPhoneLinking } from "@/Services/phone.service.js";
+import { supabase } from "@/Services/supabase.js";
 import OtpModal from "/src/Components/common/OtpModal.jsx";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { ensureAuthReady } from "@/Services/auth.helpers.js";
-import { runFirebaseDiagnostics } from "@/Services/firebaseDiagnostics.js";
 
 const PatientSignup = () => {
   const [formData, setFormData] = useState({
@@ -23,7 +18,6 @@ const PatientSignup = () => {
   const [error, setError] = useState(null);
   const [otpOpen, setOtpOpen] = useState(false);
   const [isOtpSubmitting, setIsOtpSubmitting] = useState(false);
-  const [pendingConfirmation, setPendingConfirmation] = useState(null);
   const navigate = useNavigate();
 
   const handleSignUp = async (e) => {
@@ -42,72 +36,71 @@ const PatientSignup = () => {
     }
 
     setIsLoading(true);
-    let authUser = null;
 
     try {
-      // Step 1: Create Firebase Auth user
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
-      authUser = userCredential.user;
-      await ensureAuthReady(auth, authUser.uid);
+      // Step 1: Create Supabase Auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+            role: 'patient'
+          }
+        }
+      });
 
-      try {
+      if (authError) throw authError;
+      const user = authData.user;
+
+      if (user) {
         // Step 2: Create user metadata document
-        await setDoc(doc(db, "users", authUser.uid), {
-          email: formData.email,
-          role: "patient",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
+        // Note: This might be handled by a Supabase Trigger, but doing it explicitly here for safety if no trigger exists
+        const { error: userError } = await supabase
+          .from('users')
+          .insert({
+            id: user.id,
+            email: formData.email,
+            role: "patient",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        
+        if (userError) {
+           // If user already exists (e.g. trigger created it), try update instead
+           if (userError.code === '23505') {
+              await supabase.from('users').update({
+                 role: "patient",
+                 updated_at: new Date().toISOString()
+              }).eq('id', user.id);
+           } else {
+              console.warn("Error creating user doc:", userError);
+           }
+        }
 
         // Step 3: Create detailed profile
-        await setDoc(doc(db, "patients", authUser.uid), {
-          fullName: formData.fullName,
-          dob: formData.dob || null,
-          gender: formData.gender || null,
-          bloodGroup: formData.bloodGroup || null,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
+        const { error: patientError } = await supabase
+          .from('patients')
+          .insert({
+            id: user.id,
+            full_name: formData.fullName,
+            dob: formData.dob || null,
+            gender: formData.gender || null,
+            blood_group: formData.bloodGroup || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
 
-        // Step 4: Link phone if provided
+        if (patientError) throw patientError;
+
+        // Step 4: Link phone if provided (Stub for now as Supabase phone auth is different)
         if (formData.phone) {
-          try {
-            // Start phone linking and open OTP modal
-            const confirmation = await startPhoneLinking(formData.phone);
-            setPendingConfirmation(confirmation);
-            setOtpOpen(true);
-
-            // Suspend here until OTP is handled
-            await new Promise((resolve) => {
-              const check = () => {
-                if (!otpOpen) resolve();
-                else setTimeout(check, 100);
-              };
-              check();
-            });
-          } catch (e) {
-            console.warn("Phone linking start failed:", e);
-          }
+           // TODO: Implement Supabase phone verification if needed
+           console.log("Phone verification skipped for now");
         }
 
-        // Diagnostics (non-blocking)
-        runFirebaseDiagnostics().catch(() => {});
         setIsLoading(false);
         navigate("/login");
-      } catch (firestoreError) {
-        // If Firestore operations fail, delete the auth user to maintain consistency
-        if (authUser) {
-          try {
-            await authUser.delete();
-          } catch (deleteError) {
-            console.error("Error cleaning up auth user:", deleteError);
-          }
-        }
-        throw firestoreError; // Re-throw to be caught by outer catch
       }
     } catch (error) {
       console.error("Error signing up:", error);
@@ -117,32 +110,19 @@ const PatientSignup = () => {
   };
 
   const handleOtpSubmit = async (code) => {
-    if (!pendingConfirmation) {
-      setOtpOpen(false);
-      return;
-    }
-    try {
-      setIsOtpSubmitting(true);
-      await pendingConfirmation.confirm(code);
-      setPendingConfirmation(null);
-      setOtpOpen(false);
-    } catch (e) {
-      setIsOtpSubmitting(false);
-      setError(e.message || "Invalid OTP. Please try again.");
-    } finally {
-      setIsOtpSubmitting(false);
-    }
+    // Placeholder for Supabase OTP verification
+    setOtpOpen(false);
   };
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-50 py-12">
-      <div className="max-w-2xl w-full px-6"> {/* UPDATED: max-w-md to max-w-2xl */}
+      <div className="max-w-2xl w-full px-6">
         <div className="bg-white rounded-xl shadow-md p-8">
-          <h1 className="text-3xl font-bold text-[#009cfb] mb-1"> {/* UPDATED: text-slate-900 to text-[#009cfb] */}
+          <h1 className="text-3xl font-bold text-[#009cfb] mb-1">
             Create a Patient Account
           </h1>
           <p className="text-sm text-slate-500 mb-6">
-            Sign up to manage your health with Medsta. {/* UPDATED: HealTech to Medsta */}
+            Sign up to manage your health with Medsta.
           </p>
 
           <form onSubmit={handleSignUp} className="space-y-4">

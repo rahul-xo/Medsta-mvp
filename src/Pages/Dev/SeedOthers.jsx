@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/Services/firebase.js';
+import { supabase } from '@/Services/supabase.js';
 import { useAuthStore } from '@/Stores/authStore.js';
 
 const SeedOthers = () => {
@@ -29,25 +28,24 @@ const SeedOthers = () => {
     if (!canWrite) { setMsg('Login as a provider to seed others doc.'); return; }
     setSaving(true); setMsg('');
     try {
-      await setDoc(
-        doc(db, 'providers_others', user.uid),
-        {
-          businessName: data.businessName,
-          category: data.category,
-          address: data.address || null,
-          lat: data.lat ?? null,
-          lng: data.lng ?? null,
-          email: data.email || null,
-          phone: data.phone || null,
-          openingHours: data.openingHours || null,
-          services: data.services || [],
-          status: data.status || 'pending',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      setMsg('Other provider saved to providers_others.');
+      const payload = {
+        id: user.uid,
+        businessName: data.businessName,
+        category: data.category,
+        address: data.address || null,
+        lat: data.lat ?? null,
+        lng: data.lng ?? null,
+        email: data.email || null,
+        phone: data.phone || null,
+        openingHours: data.openingHours || null,
+        services: data.services || [],
+        status: data.status || 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('providers_others').upsert([payload], { onConflict: 'id' });
+      if (error) throw error;
+      setMsg('Other provider saved to providers_others (Supabase).');
     } catch (e) {
       console.error(e); setMsg(e.message || 'Failed to save');
     } finally { setSaving(false); }

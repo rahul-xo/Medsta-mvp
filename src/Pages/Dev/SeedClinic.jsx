@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/Services/firebase.js';
+import { supabase } from '@/Services/supabase.js';
 import { useAuthStore } from '@/Stores/authStore.js';
 
 const SeedClinic = () => {
@@ -32,19 +31,18 @@ const SeedClinic = () => {
     setMsg('');
     try {
       const specializations = Array.from(new Set(doctors.map((d) => d.specialization).filter(Boolean)));
-      await setDoc(
-        doc(db, 'providers_clinics', user.uid),
-        {
-          ...clinic,
-          doctors: doctors.map((d, idx) => ({ id: `${Date.now()}-${idx}`, ...d })),
-          specializations,
-          status: 'active',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      setMsg('Clinic document saved successfully to providers_clinics.');
+      const payload = {
+        id: user.uid,
+        ...clinic,
+        doctors: doctors.map((d, idx) => ({ id: `${Date.now()}-${idx}`, ...d })),
+        specializations,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('providers_clinics').upsert([payload], { onConflict: 'id' });
+      if (error) throw error;
+      setMsg('Clinic document saved successfully to providers_clinics (Supabase).');
     } catch (e) {
       console.error(e);
       setMsg(e.message || 'Failed to save clinic');

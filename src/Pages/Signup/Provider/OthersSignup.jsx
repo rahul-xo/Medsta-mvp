@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { auth, db } from '@/Services/firebase.js';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from '@/Services/supabase.js';
 import AddressPicker from '/src/Components/common/AddressPicker.jsx';
 import OtpModal from '/src/Components/common/OtpModal.jsx';
 import { startPhoneLinking } from '@/Services/phone.service.js';
-import { ensureAuthReady } from '@/Services/auth.helpers.js';
 
 const OthersSignup = () => {
   const [formData, setFormData] = useState({
@@ -49,33 +46,56 @@ const OthersSignup = () => {
     let authUser = null;
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      authUser = userCredential.user;
-      await ensureAuthReady(auth, authUser.uid);
+      // Step 1: Create Supabase Auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.businessName,
+            role: 'provider',
+            provider_role: 'others'
+          }
+        }
+      });
 
-      try {
-        await setDoc(doc(db, 'users', authUser.uid), {
+      if (authError) throw authError;
+      authUser = authData.user;
+
+      if (authUser) {
+        // Step 2: Create user metadata document
+        const { error: userError } = await supabase.from('users').insert({
+          id: authUser.id,
           email: formData.email,
           role: 'provider',
-          providerRole: 'others',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          provider_role: 'others',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
 
-        await setDoc(doc(db, 'providers_others', authUser.uid), {
-          businessName: formData.businessName,
+        if (userError && userError.code !== '23505') {
+           console.warn("User creation warning:", userError);
+        }
+
+        // Step 3: Create detailed profile
+        const { error: profileError } = await supabase.from('providers_others').insert({
+          id: authUser.id,
+          business_name: formData.businessName,
           category: formData.category || null,
           address: formData.address || null,
           lat: formData.lat || null,
           lng: formData.lng || null,
           email: formData.email || null,
           phone: formData.phone || null,
-          openingHours: formData.openingHours || null,
+          opening_hours: formData.openingHours || null,
           services: [],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
 
+        if (profileError) throw profileError;
+
+        // Step 4: Link phone if provided
         if (formData.phone) {
           try {
             const confirmation = await startPhoneLinking(formData.phone);
@@ -95,11 +115,6 @@ const OthersSignup = () => {
 
         setIsLoading(false);
         navigate('/login');
-      } catch (firestoreError) {
-        if (authUser) {
-          try { await authUser.delete(); } catch { /* ignore cleanup errors */ }
-        }
-        throw firestoreError;
       }
     } catch (err) {
       console.error('Others signup failed:', err);
@@ -238,7 +253,33 @@ const OthersSignup = () => {
                   : 'bg-green-600 hover:bg-green-700'
               } text-white px-4 py-2 rounded-md flex items-center justify-center`}
             >
-              {isLoading ? 'Creating Account...' : 'Sign Up'}
+              {isLoading ? (
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Creating Account...
+                </>
+              ) : (
+                "Sign Up"
+              )}
             </button>
           </form>
 

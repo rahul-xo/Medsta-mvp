@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth, db } from '@/Services/firebase.js';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { ensureAuthReady } from '@/Services/auth.helpers.js';
-import { doc, getDoc } from 'firebase/firestore';
+import { supabase } from '@/Services/supabase.js';
 
 const ProviderLogin = () => {
   const [email, setEmail] = useState('');
@@ -15,39 +12,47 @@ const ProviderLogin = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      await ensureAuthReady(auth, user.uid);
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      const snap = await getDoc(doc(db, 'users', user.uid));
-      if (snap.exists()) {
-        const data = snap.data();
-        try { localStorage.setItem('medsta.role', data.role || ''); } catch {}
-        if (data.role === 'provider') {
+      if (authError) throw authError;
+
+      const user = authData.user;
+      if (user) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (userError) {
+           console.warn("Error fetching user role:", userError);
+        }
+
+        const role = userData?.role;
+        try { localStorage.setItem('medsta.role', role || ''); } catch {}
+
+        if (role === 'provider') {
           navigate('/provider-dashboard');
-        } else if (data.role === 'patient') {
-          // Redirect providers trying to log in as patients
+        } else if (role === 'patient') {
           alert('This login is for providers. Please use the patient login.');
-          setLoading(false); // Stop loading before redirecting or staying
-          // Optionally, redirect to patient login: navigate('/login');
-          return; // Prevent further execution
+          setLoading(false);
+          return;
         } else {
-          // Handle other roles or unexpected scenarios
            alert('Login successful, but role undetermined. Redirecting home.');
            navigate('/');
         }
       } else {
          alert('User data not found. Redirecting home.');
-         navigate('/'); // Or handle as an error
+         navigate('/');
       }
     } catch (err) {
       alert('Failed to log in. Please check your credentials or ensure you are using the correct login page.');
       console.error(err);
     } finally {
-      // setLoading(false); // Only set loading false if navigation didn't happen or on error
-       if (!navigate.pathname?.includes('dashboard')) { // Basic check if navigation occurred
-         setLoading(false);
-       }
+       setLoading(false);
     }
   };
 
@@ -55,7 +60,7 @@ const ProviderLogin = () => {
     <main className="min-h-screen flex items-center justify-center bg-slate-50 py-12">
       <div className="max-w-xl w-full px-6">
         <div className="bg-white rounded-xl shadow-md p-8">
-          <h1 className="text-3xl font-bold text-[#009cfb] mb-1"> {/* UPDATED COLOR HERE */}
+          <h1 className="text-3xl font-bold text-[#009cfb] mb-1">
             Provider Login
           </h1>
           <p className="text-sm text-slate-500 mb-6">Access your provider dashboard.</p>

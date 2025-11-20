@@ -1,34 +1,53 @@
-import { auth, db } from '@/Services/firebase.js';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from './supabase.js';
 
 export async function runFirebaseDiagnostics() {
-  const results = { authUser: null, writeUsersDoc: null, readUsersDoc: null, errors: [] };
+  const results = { authUser: null, writeUsersRow: null, readUsersRow: null, errors: [] };
   try {
-    results.authUser = auth.currentUser ? { uid: auth.currentUser.uid, email: auth.currentUser.email } : null;
-    if (!auth.currentUser) {
-      results.errors.push('No auth.currentUser; sign in first.');
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    const user = userData?.user || null;
+    if (userErr) {
+      results.errors.push('Failed to get auth user: ' + (userErr.message || userErr));
+      console.log('[Supabase Diagnostics]', results);
       return results;
     }
-    const uid = auth.currentUser.uid;
-    // test write
-    try {
-      await setDoc(doc(db, 'users', uid), { diagPingAt: serverTimestamp(), email: auth.currentUser.email || null }, { merge: true });
-      results.writeUsersDoc = 'ok';
-    } catch (e) {
-      results.writeUsersDoc = 'fail';
-      results.errors.push('Write users doc failed: ' + (e.code || e.message));
+    results.authUser = user ? { id: user.id, email: user.email } : null;
+    if (!user) {
+      results.errors.push('No authenticated user; sign in first.');
+      return results;
     }
+    const uid = user.id;
+
+    // test write (upsert)
+    try {
+      const payload = { id: uid, diagPingAt: new Date().toISOString(), email: user.email || null };
+      const { error } = await supabase.from('users').upsert([payload], { onConflict: 'id' });
+      if (error) {
+        results.writeUsersRow = 'fail';
+        results.errors.push('Write users row failed: ' + (error.message || error));
+      } else {
+        results.writeUsersRow = 'ok';
+      }
+    } catch (e) {
+      results.writeUsersRow = 'fail';
+      results.errors.push('Write users row crashed: ' + (e.message || e));
+    }
+
     // test read
     try {
-      const snap = await getDoc(doc(db, 'users', uid));
-      results.readUsersDoc = snap.exists() ? 'ok' : 'not-found';
+      const { data, error } = await supabase.from('users').select('id').eq('id', uid).maybeSingle();
+      if (error) {
+        results.readUsersRow = 'fail';
+        results.errors.push('Read users row failed: ' + (error.message || error));
+      } else {
+        results.readUsersRow = data ? 'ok' : 'not-found';
+      }
     } catch (e) {
-      results.readUsersDoc = 'fail';
-      results.errors.push('Read users doc failed: ' + (e.code || e.message));
+      results.readUsersRow = 'fail';
+      results.errors.push('Read users row crashed: ' + (e.message || e));
     }
   } catch (outer) {
-    results.errors.push('Diagnostics crashed: ' + (outer.code || outer.message));
+    results.errors.push('Diagnostics crashed: ' + (outer?.message || outer));
   }
-  console.log('[Firebase Diagnostics]', results);
+  console.log('[Supabase Diagnostics]', results);
   return results;
 }

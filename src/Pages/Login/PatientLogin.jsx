@@ -1,10 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth, db } from '@/Services/firebase.js';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { ensureAuthReady } from '@/Services/auth.helpers.js';
-import { runFirebaseDiagnostics } from '@/Services/firebaseDiagnostics.js';
-import { doc, getDoc } from 'firebase/firestore';
+import { supabase } from '@/Services/supabase.js';
 
 const PatientLogin = () => {
   const [email, setEmail] = useState('');
@@ -16,25 +12,37 @@ const PatientLogin = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      await ensureAuthReady(auth, user.uid);
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      const snap = await getDoc(doc(db, 'users', user.uid));
-      if (snap.exists()) {
-        const data = snap.data();
-        try { localStorage.setItem('medsta.role', data.role || ''); } catch {}
-        if (data.role === 'patient') {
+      if (authError) throw authError;
+
+      const user = authData.user;
+      if (user) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (userError) {
+           console.warn("Error fetching user role:", userError);
+           // Fallback or default behavior if needed
+        }
+
+        const role = userData?.role;
+        try { localStorage.setItem('medsta.role', role || ''); } catch {}
+
+        if (role === 'patient') {
           navigate('/patient-dashboard');
-        } else if (data.role === 'provider') {
+        } else if (role === 'provider') {
           navigate('/provider-dashboard');
         } else {
           navigate('/');
         }
-      } else {
-        navigate('/');
       }
-      runFirebaseDiagnostics().catch(() => {});
     } catch (err) {
       alert('Failed to log in. Please check your credentials.');
       console.error(err);

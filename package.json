@@ -7,14 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "firebase:login": "firebase login",
-    "deploy:rules": "firebase deploy --only firestore:rules"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
     "axios": "^1.7.7",
-    "firebase": "^12.6.0",
+    "@supabase/supabase-js": "^2.39.0",
     "leaflet": "^1.9.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

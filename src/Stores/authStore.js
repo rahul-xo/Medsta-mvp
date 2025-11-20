@@ -1,7 +1,5 @@
 import { create } from 'zustand';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/Services/firebase.js';
+import { supabase } from '@/Services/supabase.js';
 
 export const useAuthStore = create((set, get) => ({
   user: null,
@@ -11,32 +9,55 @@ export const useAuthStore = create((set, get) => ({
   init: () => {
     if (get().initialized) return;
     set({ initialized: true });
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        try { localStorage.removeItem('medsta.role'); } catch {}
-        set({ user: null, role: null, loading: false });
-        return;
-      }
-      let role = null;
-      try {
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        if (snap.exists()) {
-          const data = snap.data();
-          role = data.role || null;
-          try { localStorage.setItem('medsta.role', role || ''); } catch {}
-        }
-      } catch {
-        // If Firestore fetch fails (offline etc), fall back to cached role
-        try {
-          const cached = localStorage.getItem('medsta.role');
-          if (cached) role = cached || null;
-        } catch { /* ignore */ }
-      }
-      set({ user, role, loading: false });
+
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session, set);
     });
+
+    // Listen for changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session, set);
+    });
+
+    return () => subscription.unsubscribe();
   },
   signOut: async () => {
-    const { signOut } = await import('firebase/auth');
-    await signOut(auth);
+    await supabase.auth.signOut();
+    try { localStorage.removeItem('medsta.role'); } catch { }
+    set({ user: null, role: null, loading: false });
   },
 }));
+
+async function handleSession(session, set) {
+  if (!session?.user) {
+    try { localStorage.removeItem('medsta.role'); } catch { }
+    set({ user: null, role: null, loading: false });
+    return;
+  }
+
+  const user = session.user;
+  let role = null;
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (data) {
+      role = data.role || null;
+      try { localStorage.setItem('medsta.role', role || ''); } catch { }
+    }
+  } catch {
+    // If fetch fails, fall back to cached role
+    try {
+      const cached = localStorage.getItem('medsta.role');
+      if (cached) role = cached || null;
+    } catch { /* ignore */ }
+  }
+  set({ user, role, loading: false });
+}

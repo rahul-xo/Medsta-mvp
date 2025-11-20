@@ -1,13 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { auth, db, storage } from '@/Services/firebase.js';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { supabase } from '@/Services/supabase.js';
 import AddressPicker from '/src/Components/common/AddressPicker.jsx';
 import OtpModal from '/src/Components/common/OtpModal.jsx';
 import { startPhoneLinking } from '@/Services/phone.service.js';
-import { ensureAuthReady } from '@/Services/auth.helpers.js';
 
 const TherapySignup = () => {
   const [formData, setFormData] = useState({
@@ -62,20 +58,38 @@ const TherapySignup = () => {
     let authUser = null;
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      authUser = userCredential.user;
-      await ensureAuthReady(auth, authUser.uid);
+      // Step 1: Create Supabase Auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.therapistFullName,
+            role: 'provider',
+            provider_role: 'therapy'
+          }
+        }
+      });
 
-      try {
-        await setDoc(doc(db, 'users', authUser.uid), {
+      if (authError) throw authError;
+      authUser = authData.user;
+
+      if (authUser) {
+        // Step 2: Create user metadata document
+        const { error: userError } = await supabase.from('users').insert({
+          id: authUser.id,
           email: formData.email,
           role: 'provider',
-          providerRole: 'therapy',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          provider_role: 'therapy',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
 
-        // upload helper
+        if (userError && userError.code !== '23505') {
+           console.warn("User creation warning:", userError);
+        }
+
+        // Step 3: Upload files
         const uploadFiles = async (files, folder) => {
           if (!files) return [];
           const arr = Array.isArray(files) ? files : [files];
@@ -83,10 +97,21 @@ const TherapySignup = () => {
           for (let i = 0; i < arr.length; i++) {
             const f = arr[i];
             if (!f) continue;
-            const storageRef = ref(storage, `${folder}/${authUser.uid}/${Date.now()}_${i}_${f.name}`);
-            const snap = await uploadBytes(storageRef, f);
-            const url = await getDownloadURL(snap.ref);
-            urls.push(url);
+            const filePath = `${folder}/${authUser.id}/${Date.now()}_${i}_${f.name}`;
+            const { error: uploadError } = await supabase.storage
+              .from('provider-docs')
+              .upload(filePath, f);
+            
+            if (uploadError) {
+              console.warn('Upload failed:', uploadError);
+              continue;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+              .from('provider-docs')
+              .getPublicUrl(filePath);
+            
+            urls.push(publicUrl);
           }
           return urls;
         };
@@ -99,33 +124,38 @@ const TherapySignup = () => {
           docUploads.photos = formData.providerPhotos && formData.providerPhotos.length ? await uploadFiles(formData.providerPhotos, 'providers_therapies_photos') : [];
         } catch (uErr) { console.warn('Upload error', uErr); }
 
-        await setDoc(doc(db, 'providers_therapies', authUser.uid), {
-          therapistFullName: formData.therapistFullName,
-          therapyType: formData.therapyType || null,
-          centerName: formData.centerName || null,
+        // Step 4: Create detailed profile
+        const { error: profileError } = await supabase.from('providers_therapies').insert({
+          id: authUser.id,
+          therapist_full_name: formData.therapistFullName,
+          therapy_type: formData.therapyType || null,
+          center_name: formData.centerName || null,
           address: formData.address || null,
           lat: formData.lat || null,
           lng: formData.lng || null,
           email: formData.email || null,
           phone: formData.phone || null,
-          yearsExperience: Number(formData.experience || 0),
-          sessionFee: Number(formData.sessionFee || 0),
-          servicesOffered: formData.servicesOffered || null,
+          years_experience: Number(formData.experience || 0),
+          session_fee: Number(formData.sessionFee || 0),
+          services_offered: formData.servicesOffered || null,
           documents: {
             degreeCertificates: docUploads.degrees || [],
             registration: docUploads.registration || null,
             experienceCertificates: docUploads.experienceCerts || [],
             photos: docUploads.photos || [],
           },
-          panNumber: formData.panNumber || null,
-          bankAccount: formData.bankAccount || null,
-          whatsappNumber: formData.whatsappNumber || null,
+          pan_number: formData.panNumber || null,
+          bank_account: formData.bankAccount || null,
+          whatsapp_number: formData.whatsappNumber || null,
           consents: formData.consents || {},
           modes: { atCenter: true },
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
 
+        if (profileError) throw profileError;
+
+        // Step 5: Link phone if provided
         if (formData.phone) {
           try {
             const confirmation = await startPhoneLinking(formData.phone);
@@ -145,11 +175,6 @@ const TherapySignup = () => {
 
         setIsLoading(false);
         navigate('/login');
-      } catch (firestoreError) {
-        if (authUser) {
-          try { await authUser.delete(); } catch { /* ignore cleanup errors */ }
-        }
-        throw firestoreError;
       }
     } catch (err) {
       console.error('Therapy signup failed:', err);
@@ -372,7 +397,33 @@ const TherapySignup = () => {
                   : 'bg-green-600 hover:bg-green-700'
               } text-white px-4 py-2 rounded-md flex items-center justify-center`}
             >
-              {isLoading ? 'Creating Account...' : 'Sign Up'}
+              {isLoading ? (
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Creating Account...
+                </>
+              ) : (
+                "Sign Up"
+              )}
             </button>
           </form>
 

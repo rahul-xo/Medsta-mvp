@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { auth, db } from '@/Services/firebase.js';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { ensureAuthReady } from '@/Services/auth.helpers.js';
+import { supabase } from '@/Services/supabase.js';
 
 const DeliveryAgentSignup = () => {
   const [formData, setFormData] = useState({
@@ -13,8 +10,8 @@ const DeliveryAgentSignup = () => {
     confirmPassword: '',
   });
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // Added isLoading state
-  const [error, setError] = useState(null); // Added error state
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   const isValid = () => {
@@ -29,37 +26,61 @@ const DeliveryAgentSignup = () => {
   const handleSignUp = async (e) => {
     e.preventDefault();
     setSubmitAttempted(true);
-    setError(null); // Clear previous errors
+    setError(null);
     if (!isValid()) return;
 
-    setIsLoading(true); // Set loading true
+    setIsLoading(true);
+    let authUser = null;
+
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      const user = userCredential.user;
-      await ensureAuthReady(auth, user.uid);
-
-      // users: routing metadata
-      await setDoc(doc(db, 'users', user.uid), {
+      // Step 1: Create Supabase Auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        role: 'provider',
-        providerRole: 'delivery_agent',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.deliveryFullName,
+            role: 'provider',
+            provider_role: 'delivery_agent'
+          }
+        }
       });
 
-      // providers_delivery_agents: detailed profile
-      await setDoc(doc(db, 'providers_delivery_agents', user.uid), {
-        deliveryFullName: formData.deliveryFullName,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        // Add other relevant fields like vehicle details, license, availability, GeoPoint later
-      });
-      setIsLoading(false); // Set loading false on success
-      navigate('/login');
+      if (authError) throw authError;
+      authUser = authData.user;
+
+      if (authUser) {
+        // Step 2: Create user metadata document
+        const { error: userError } = await supabase.from('users').insert({
+          id: authUser.id,
+          email: formData.email,
+          role: 'provider',
+          provider_role: 'delivery_agent',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        if (userError && userError.code !== '23505') {
+           console.warn("User creation warning:", userError);
+        }
+
+        // Step 3: Create detailed profile
+        const { error: profileError } = await supabase.from('providers_delivery_agents').insert({
+          id: authUser.id,
+          delivery_full_name: formData.deliveryFullName,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        if (profileError) throw profileError;
+
+        setIsLoading(false);
+        navigate('/login');
+      }
     } catch (error) {
       console.error('Error signing up:', error);
-      setError(error.message || `Sign up failed`); // Set error state
-      setIsLoading(false); // Set loading false on error
+      setError(error.message || 'Sign up failed');
+      setIsLoading(false);
     }
   };
 
@@ -67,10 +88,10 @@ const DeliveryAgentSignup = () => {
     <main className="min-h-screen flex items-center justify-center bg-slate-50 py-12">
       <div className="max-w-md w-full px-6">
         <div className="bg-white rounded-xl shadow-md p-8">
-          <h1 className="text-3xl font-bold text-[#009cfb] mb-1"> {/* UPDATED COLOR HERE */}
+          <h1 className="text-3xl font-bold text-[#009cfb] mb-1">
             Create a Delivery Agent Account
           </h1>
-          <p className="text-sm text-slate-500 mb-6">Deliver health services and medicines with Medsta.</p> {/* UPDATED: HealTech to Medsta */}
+          <p className="text-sm text-slate-500 mb-6">Deliver health services and medicines with Medsta.</p>
 
           <form onSubmit={handleSignUp} className="space-y-4">
             <div>
@@ -125,7 +146,6 @@ const DeliveryAgentSignup = () => {
               />
             </div>
 
-            {/* Display error message */}
             {(error || (!isValid() && submitAttempted)) && (
               <p className="text-sm text-red-600 mt-2">
                 {error || 'Please fill all required fields and ensure passwords match.'}
@@ -137,7 +157,7 @@ const DeliveryAgentSignup = () => {
               disabled={isLoading || (!isValid() && submitAttempted)}
               className={`w-full ${
                 isLoading
-                 ? 'bg-gray-400 cursor-not-allowed'
+                  ? 'bg-gray-400 cursor-not-allowed'
                   : !isValid() && submitAttempted
                   ? 'bg-slate-300 cursor-not-allowed'
                   : 'bg-green-600 hover:bg-green-700'

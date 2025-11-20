@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/Services/firebase.js';
+import { supabase } from '@/Services/supabase.js';
 import { useAuthStore } from '@/Stores/authStore.js';
 
 const SeedTherapy = () => {
@@ -28,27 +27,26 @@ const SeedTherapy = () => {
     if (!canWrite) { setMsg('Login as a provider to seed therapy doc.'); return; }
     setSaving(true); setMsg('');
     try {
-      await setDoc(
-        doc(db, 'providers_therapies', user.uid),
-        {
-          therapistFullName: data.therapistFullName,
-          therapyType: data.therapyType,
-          centerName: data.centerName || null,
-          address: data.address || null,
-          lat: data.lat ?? null,
-          lng: data.lng ?? null,
-          email: data.email || null,
-          phone: data.phone || null,
-          yearsExperience: Number(data.yearsExperience || 0),
-          sessionFee: Number(data.sessionFee || 0),
-          modes: data.modes || {},
-          status: data.status || 'pending',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      setMsg('Therapy profile saved to providers_therapies.');
+      const payload = {
+        id: user.uid,
+        therapistFullName: data.therapistFullName,
+        therapyType: data.therapyType,
+        centerName: data.centerName || null,
+        address: data.address || null,
+        lat: data.lat ?? null,
+        lng: data.lng ?? null,
+        email: data.email || null,
+        phone: data.phone || null,
+        yearsExperience: Number(data.yearsExperience || 0),
+        sessionFee: Number(data.sessionFee || 0),
+        modes: data.modes || {},
+        status: data.status || 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('providers_therapies').upsert([payload], { onConflict: 'id' });
+      if (error) throw error;
+      setMsg('Therapy profile saved to providers_therapies (Supabase).');
     } catch (e) {
       console.error(e); setMsg(e.message || 'Failed to save');
     } finally { setSaving(false); }

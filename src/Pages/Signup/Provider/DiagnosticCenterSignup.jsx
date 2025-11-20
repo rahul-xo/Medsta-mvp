@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { auth, db, storage } from '@/Services/firebase.js';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { supabase } from '@/Services/supabase.js';
 import AddressPicker from '/src/Components/common/AddressPicker.jsx';
 import ToggleSwitch from '/src/Components/common/ToggleSwitch.jsx';
 import OtpModal from '/src/Components/common/OtpModal.jsx';
 import { startPhoneLinking } from '@/Services/phone.service.js';
-import { ensureAuthReady } from '@/Services/auth.helpers.js';
 
 const DiagnosticCenterSignup = () => {
   const [formData, setFormData] = useState({
@@ -60,89 +56,127 @@ const DiagnosticCenterSignup = () => {
     setError(null);
     if (!isValid()) return;
 
+    setIsLoading(true);
+    let authUser = null;
+
     try {
-      setIsLoading(true);
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      const user = userCredential.user;
-      await ensureAuthReady(auth, user.uid);
-
-      // users metadata
-      await setDoc(doc(db, 'users', user.uid), {
+      // Step 1: Create Supabase Auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        role: 'provider',
-        providerRole: 'diagnostic_center',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      // upload helper
-      const uploadFiles = async (files, folder) => {
-        if (!files) return [];
-        const arr = Array.isArray(files) ? files : [files];
-        const urls = [];
-        for (let i = 0; i < arr.length; i++) {
-          const f = arr[i];
-          if (!f) continue;
-          const storageRef = ref(storage, `${folder}/${user.uid}/${Date.now()}_${i}_${f.name}`);
-          const snap = await uploadBytes(storageRef, f);
-          const url = await getDownloadURL(snap.ref);
-          urls.push(url);
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.diagnosticCenterName,
+            role: 'provider',
+            provider_role: 'diagnostic_center'
+          }
         }
-        return urls;
-      };
-
-      const docUploads = {};
-      try {
-        docUploads.nabl = formData.nablCertificateFile ? (await uploadFiles(formData.nablCertificateFile, 'providers_diagnostic_docs'))[0] : null;
-        docUploads.registration = formData.labRegistrationFile ? (await uploadFiles(formData.labRegistrationFile, 'providers_diagnostic_docs'))[0] : null;
-        docUploads.pathologist = formData.pathologistCredentialsFiles && formData.pathologistCredentialsFiles.length ? await uploadFiles(formData.pathologistCredentialsFiles, 'providers_diagnostic_docs') : [];
-        docUploads.sampleReport = formData.sampleReportFile ? (await uploadFiles(formData.sampleReportFile, 'providers_diagnostic_docs'))[0] : null;
-        docUploads.labPhotos = formData.labPhotos && formData.labPhotos.length ? await uploadFiles(formData.labPhotos, 'providers_diagnostic_photos') : [];
-      } catch (uErr) { console.warn('Upload error', uErr); }
-
-      // profile doc
-      await setDoc(doc(db, 'providers_diagnostic_centers', user.uid), {
-        diagnosticCenterName: formData.diagnosticCenterName,
-        diagnosticLicenseNumber: formData.diagnosticLicenseNumber || null,
-        diagnosticAddress: formData.diagnosticAddress || null,
-        diagnosticLat: formData.diagnosticLat || null,
-        diagnosticLng: formData.diagnosticLng || null,
-        diagnosticOpeningHours: formData.diagnosticOpeningHours || null,
-        atHomeSampleCollection: !!formData.atHomeSampleCollection,
-        reportDelivery: !!formData.reportDelivery,
-        documents: {
-          nabl: docUploads.nabl || null,
-          registration: docUploads.registration || null,
-          pathologistCredentials: docUploads.pathologist || [],
-          sampleReport: docUploads.sampleReport || null,
-          labPhotos: docUploads.labPhotos || [],
-        },
-        testMenu: formData.testMenu || null,
-        panNumber: formData.panNumber || null,
-        bankAccount: formData.bankAccount || null,
-        whatsappNumber: formData.whatsappNumber || null,
-        consents: formData.consents || {},
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       });
-      if (formData.phone) {
+
+      if (authError) throw authError;
+      authUser = authData.user;
+
+      if (authUser) {
+        // Step 2: Create user metadata document
+        const { error: userError } = await supabase.from('users').insert({
+          id: authUser.id,
+          email: formData.email,
+          role: 'provider',
+          provider_role: 'diagnostic_center',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        if (userError && userError.code !== '23505') {
+           console.warn("User creation warning:", userError);
+        }
+
+        // Step 3: Upload files
+        const uploadFiles = async (files, folder) => {
+          if (!files) return [];
+          const arr = Array.isArray(files) ? files : [files];
+          const urls = [];
+          for (let i = 0; i < arr.length; i++) {
+            const f = arr[i];
+            if (!f) continue;
+            const filePath = `${folder}/${authUser.id}/${Date.now()}_${i}_${f.name}`;
+            const { error: uploadError } = await supabase.storage
+              .from('provider-docs')
+              .upload(filePath, f);
+            
+            if (uploadError) {
+              console.warn('Upload failed:', uploadError);
+              continue;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+              .from('provider-docs')
+              .getPublicUrl(filePath);
+            
+            urls.push(publicUrl);
+          }
+          return urls;
+        };
+
+        const docUploads = {};
         try {
-          const confirmation = await startPhoneLinking(formData.phone);
-          setPendingConfirmation(confirmation);
-          setOtpOpen(true);
-          await new Promise((resolve) => {
-            const check = () => {
-              if (!otpOpen) resolve();
-              else setTimeout(check, 100);
-            };
-            check();
-          });
-        } catch (e) {
-          console.warn('Phone linking start failed:', e);
+          docUploads.nabl = formData.nablCertificateFile ? (await uploadFiles(formData.nablCertificateFile, 'providers_diagnostic_docs'))[0] : null;
+          docUploads.registration = formData.labRegistrationFile ? (await uploadFiles(formData.labRegistrationFile, 'providers_diagnostic_docs'))[0] : null;
+          docUploads.pathologist = formData.pathologistCredentialsFiles && formData.pathologistCredentialsFiles.length ? await uploadFiles(formData.pathologistCredentialsFiles, 'providers_diagnostic_docs') : [];
+          docUploads.sampleReport = formData.sampleReportFile ? (await uploadFiles(formData.sampleReportFile, 'providers_diagnostic_docs'))[0] : null;
+          docUploads.labPhotos = formData.labPhotos && formData.labPhotos.length ? await uploadFiles(formData.labPhotos, 'providers_diagnostic_photos') : [];
+        } catch (uErr) { console.warn('Upload error', uErr); }
+
+        // Step 4: Create detailed profile
+        const { error: profileError } = await supabase.from('providers_diagnostic_centers').insert({
+          id: authUser.id,
+          diagnostic_center_name: formData.diagnosticCenterName,
+          diagnostic_license_number: formData.diagnosticLicenseNumber || null,
+          diagnostic_address: formData.diagnosticAddress || null,
+          diagnostic_lat: formData.diagnosticLat || null,
+          diagnostic_lng: formData.diagnosticLng || null,
+          diagnostic_opening_hours: formData.diagnosticOpeningHours || null,
+          at_home_sample_collection: !!formData.atHomeSampleCollection,
+          report_delivery: !!formData.reportDelivery,
+          documents: {
+            nabl: docUploads.nabl || null,
+            registration: docUploads.registration || null,
+            pathologistCredentials: docUploads.pathologist || [],
+            sampleReport: docUploads.sampleReport || null,
+            labPhotos: docUploads.labPhotos || [],
+          },
+          test_menu: formData.testMenu || null,
+          pan_number: formData.panNumber || null,
+          bank_account: formData.bankAccount || null,
+          whatsapp_number: formData.whatsappNumber || null,
+          consents: formData.consents || {},
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        if (profileError) throw profileError;
+
+        // Step 5: Link phone if provided
+        if (formData.phone) {
+          try {
+            const confirmation = await startPhoneLinking(formData.phone);
+            setPendingConfirmation(confirmation);
+            setOtpOpen(true);
+            await new Promise((resolve) => {
+              const check = () => {
+                if (!otpOpen) resolve();
+                else setTimeout(check, 100);
+              };
+              check();
+            });
+          } catch (e) {
+            console.warn('Phone linking start failed:', e);
+          }
         }
+
+        setIsLoading(false);
+        navigate('/login');
       }
-      setIsLoading(false);
-      navigate('/login');
     } catch (error) {
       console.error('Error signing up:', error);
       setError(error.message || 'Sign up failed');
@@ -169,13 +203,13 @@ const DiagnosticCenterSignup = () => {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 py-12">
-      <div className="max-4-md px-6">
+    <main className="min-h-screen flex items-center justify-center py-12 pt-20">
+      <div className="max-w-2xl w-full px-6">
         <div className="bg-white rounded-xl shadow-md p-8">
-          <h1 className="text-3xl font-bold text-[#009cfb] mb-1"> {/* UPDATED COLOR HERE */}
+          <h1 className="text-3xl font-bold text-[#009cfb] mb-1">
             Create a Diagnostic Center Account
           </h1>
-          <p className="text-sm text-slate-500 mb-6">Serve patients with lab services through Medsta.</p> {/* UPDATED: HealTech to Medsta */}
+          <p className="text-sm text-slate-500 mb-6">Serve patients with lab services through Medsta.</p>
 
           <form onSubmit={handleSignUp} className="space-y-4">
             <div>
@@ -338,7 +372,33 @@ const DiagnosticCenterSignup = () => {
                   : 'bg-slate-300 cursor-not-allowed'
               }`}
             >
-              {isLoading ? 'Creating Account...' : 'Sign Up'}
+              {isLoading ? (
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Creating Account...
+                </>
+              ) : (
+                "Sign Up"
+              )}
             </button>
           </form>
 

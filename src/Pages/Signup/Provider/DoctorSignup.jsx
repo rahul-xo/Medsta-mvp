@@ -1,14 +1,11 @@
+
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { auth, db, storage } from "@/Services/firebase.js";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { supabase } from "@/Services/supabase.js";
 import AddressPicker from "/src/Components/common/AddressPicker.jsx";
 import ToggleSwitch from "/src/Components/common/ToggleSwitch.jsx";
 import OtpModal from "/src/Components/common/OtpModal.jsx";
 import { startPhoneLinking } from "@/Services/phone.service.js";
-import { ensureAuthReady } from "@/Services/auth.helpers.js";
 
 const DoctorSignup = () => {
   const [formData, setFormData] = useState({
@@ -70,24 +67,37 @@ const DoctorSignup = () => {
     let authUser = null;
 
     try {
-      // Step 1: Create Firebase Auth user
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
-      authUser = userCredential.user;
-      await ensureAuthReady(auth, authUser.uid);
+      // Step 1: Create Supabase Auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.doctorFullName,
+            role: 'provider',
+            provider_role: 'clinic'
+          }
+        }
+      });
 
-      try {
-        // Step 2: Create user metadata document
-        await setDoc(doc(db, "users", authUser.uid), {
+      if (authError) throw authError;
+      authUser = authData.user;
+
+      if (authUser) {
+        // Step 2: Create user metadata document (if not handled by trigger)
+        // We'll try to insert, if it fails due to duplicate (trigger), we ignore
+        const { error: userError } = await supabase.from('users').insert({
+          id: authUser.id,
           email: formData.email,
           role: "provider",
-          providerRole: "clinic",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          provider_role: "clinic",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
+        
+        if (userError && userError.code !== '23505') { // 23505 is unique violation
+           console.warn("User creation warning:", userError);
+        }
 
         // Step 3: Create detailed clinic profile in new collection
         const doctorsArr = (formData.doctors || [])
@@ -112,10 +122,21 @@ const DoctorSignup = () => {
           for (let i = 0; i < arr.length; i++) {
             const f = arr[i];
             if (!f) continue;
-            const storageRef = ref(storage, `${folder}/${authUser.uid}/${Date.now()}_${i}_${f.name}`);
-            const snap = await uploadBytes(storageRef, f);
-            const url = await getDownloadURL(snap.ref);
-            urls.push(url);
+            const filePath = `${folder}/${authUser.id}/${Date.now()}_${i}_${f.name}`;
+            const { error: uploadError } = await supabase.storage
+              .from('provider-docs') // Assuming a bucket named 'provider-docs'
+              .upload(filePath, f);
+            
+            if (uploadError) {
+              console.warn('Upload failed:', uploadError);
+              continue;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+              .from('provider-docs')
+              .getPublicUrl(filePath);
+            
+            urls.push(publicUrl);
           }
           return urls;
         };
@@ -123,24 +144,25 @@ const DoctorSignup = () => {
         // upload provider documents if provided
         const docUploads = {};
         try {
-          docUploads.photoId = formData.photoIdFile ? (await uploadFiles(formData.photoIdFile, 'providers_docs'))[0] : null;
-          docUploads.degreeCertificates = formData.degreeFiles && formData.degreeFiles.length ? await uploadFiles(formData.degreeFiles, 'providers_docs') : [];
-          docUploads.specializationProofs = formData.specializationProofFiles && formData.specializationProofFiles.length ? await uploadFiles(formData.specializationProofFiles, 'providers_docs') : [];
-          docUploads.clinicLicense = formData.clinicLicenseFile ? (await uploadFiles(formData.clinicLicenseFile, 'providers_docs'))[0] : null;
-          docUploads.prescriptionSample = formData.prescriptionSampleFile ? (await uploadFiles(formData.prescriptionSampleFile, 'providers_docs'))[0] : null;
-          docUploads.clinicPhotos = formData.clinicPhotosFiles && formData.clinicPhotosFiles.length ? await uploadFiles(formData.clinicPhotosFiles, 'providers_photos') : [];
+          docUploads.photoId = formData.photoIdFile ? (await uploadFiles(formData.photoIdFile, 'identity'))[0] : null;
+          docUploads.degreeCertificates = formData.degreeFiles && formData.degreeFiles.length ? await uploadFiles(formData.degreeFiles, 'degrees') : [];
+          docUploads.specializationProofs = formData.specializationProofFiles && formData.specializationProofFiles.length ? await uploadFiles(formData.specializationProofFiles, 'specialization') : [];
+          docUploads.clinicLicense = formData.clinicLicenseFile ? (await uploadFiles(formData.clinicLicenseFile, 'licenses'))[0] : null;
+          docUploads.prescriptionSample = formData.prescriptionSampleFile ? (await uploadFiles(formData.prescriptionSampleFile, 'samples'))[0] : null;
+          docUploads.clinicPhotos = formData.clinicPhotosFiles && formData.clinicPhotosFiles.length ? await uploadFiles(formData.clinicPhotosFiles, 'clinic_photos') : [];
         } catch (uploadErr) {
           console.warn('Document upload failed, proceeding without docs:', uploadErr);
         }
 
-        await setDoc(doc(db, "providers_clinics", authUser.uid), {
-          primaryContactName: formData.doctorFullName,
-          clinicName: formData.clinicName || null,
-          medicalRegNumber: formData.medicalRegNumber || null,
-          clinicAddress: formData.clinicAddress || null,
-          clinicLat: formData.clinicLat || null,
-          clinicLng: formData.clinicLng || null,
-          videoConsultation: !!formData.videoConsultation,
+        const { error: profileError } = await supabase.from('providers_clinics').insert({
+          id: authUser.id, // Link by ID
+          primary_contact_name: formData.doctorFullName,
+          clinic_name: formData.clinicName || null,
+          medical_reg_number: formData.medicalRegNumber || null,
+          clinic_address: formData.clinicAddress || null,
+          clinic_lat: formData.clinicLat || null,
+          clinic_lng: formData.clinicLng || null,
+          video_consultation: !!formData.videoConsultation,
           doctors: doctorsArr,
           specializations,
           // New fields
@@ -152,14 +174,16 @@ const DoctorSignup = () => {
             prescriptionSample: docUploads.prescriptionSample || null,
             clinicPhotos: docUploads.clinicPhotos || [],
           },
-          panNumber: formData.panNumber || null,
-          bankAccount: formData.bankAccount || null,
-          whatsappNumber: formData.whatsappNumber || null,
+          pan_number: formData.panNumber || null,
+          bank_account: formData.bankAccount || null,
+          whatsapp_number: formData.whatsappNumber || null,
           consents: formData.consents || {},
           status: "pending",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
+
+        if (profileError) throw profileError;
 
         // Step 4: Link phone if provided
         if (formData.phone) {
@@ -182,21 +206,13 @@ const DoctorSignup = () => {
         // All operations succeeded
         setIsLoading(false);
         navigate("/login");
-      } catch (firestoreError) {
-        // If Firestore operations fail, delete the auth user to maintain consistency
-        if (authUser) {
-          try {
-            await authUser.delete();
-          } catch (deleteError) {
-            console.error("Error cleaning up auth user:", deleteError);
-          }
-        }
-        throw firestoreError; // Re-throw to be caught by outer catch
       }
     } catch (error) {
       console.error("Error signing up:", error);
       setError(error.message || "Failed to create account. Please try again.");
       setIsLoading(false);
+      // Cleanup if needed (Supabase doesn't have easy 'delete user' from client without admin, so we might leave a partial user if profile creation fails. 
+      // In a real app, we'd use a transaction or Edge Function.)
     }
   };
 

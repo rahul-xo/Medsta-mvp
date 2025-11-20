@@ -1,13 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { auth, db, storage } from "@/Services/firebase.js";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { supabase } from "@/Services/supabase.js";
 import AddressPicker from "/src/Components/common/AddressPicker.jsx";
 import OtpModal from "/src/Components/common/OtpModal.jsx";
 import { startPhoneLinking } from "@/Services/phone.service.js";
-import { ensureAuthReady } from "@/Services/auth.helpers.js";
 
 const PharmacySignup = () => {
   const [formData, setFormData] = useState({
@@ -67,24 +63,36 @@ const PharmacySignup = () => {
     let authUser = null;
 
     try {
-      // Step 1: Create Firebase Auth user
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
-      authUser = userCredential.user;
-      await ensureAuthReady(auth, authUser.uid);
+      // Step 1: Create Supabase Auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.pharmacyName, // Using pharmacy name as full name for auth
+            role: 'provider',
+            provider_role: 'pharmacy'
+          }
+        }
+      });
 
-      try {
+      if (authError) throw authError;
+      authUser = authData.user;
+
+      if (authUser) {
         // Step 2: Create user metadata document
-        await setDoc(doc(db, "users", authUser.uid), {
+        const { error: userError } = await supabase.from('users').insert({
+          id: authUser.id,
           email: formData.email,
           role: "provider",
-          providerRole: "pharmacy",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          provider_role: "pharmacy",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
+
+        if (userError && userError.code !== '23505') {
+           console.warn("User creation warning:", userError);
+        }
 
         // Step 3: Create detailed profile + upload docs
         const uploadFiles = async (files, folder) => {
@@ -94,31 +102,43 @@ const PharmacySignup = () => {
           for (let i = 0; i < arr.length; i++) {
             const f = arr[i];
             if (!f) continue;
-            const storageRef = ref(storage, `${'providers_pharmacies_docs'}/${authUser.uid}/${Date.now()}_${i}_${f.name}`);
-            const snap = await uploadBytes(storageRef, f);
-            const url = await getDownloadURL(snap.ref);
-            urls.push(url);
+            const filePath = `${folder}/${authUser.id}/${Date.now()}_${i}_${f.name}`;
+            const { error: uploadError } = await supabase.storage
+              .from('provider-docs')
+              .upload(filePath, f);
+            
+            if (uploadError) {
+              console.warn('Upload failed:', uploadError);
+              continue;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+              .from('provider-docs')
+              .getPublicUrl(filePath);
+            
+            urls.push(publicUrl);
           }
           return urls;
         };
 
         const docUploads = {};
         try {
-          docUploads.gst = formData.gstCertificateFile ? (await uploadFiles(formData.gstCertificateFile, 'providers_pharmacies_docs'))[0] : null;
-          docUploads.drugLicenses = formData.drugLicenseFiles && formData.drugLicenseFiles.length ? await uploadFiles(formData.drugLicenseFiles, 'providers_pharmacies_docs') : [];
-          docUploads.pharmacistRegistration = formData.pharmacistRegistrationFile ? (await uploadFiles(formData.pharmacistRegistrationFile, 'providers_pharmacies_docs'))[0] : null;
-          docUploads.storePhotos = formData.storePhotos && formData.storePhotos.length ? await uploadFiles(formData.storePhotos, 'providers_pharmacies_photos') : [];
-          docUploads.sampleInvoice = formData.sampleInvoiceFile ? (await uploadFiles(formData.sampleInvoiceFile, 'providers_pharmacies_docs'))[0] : null;
+          docUploads.gst = formData.gstCertificateFile ? (await uploadFiles(formData.gstCertificateFile, 'pharmacy_docs'))[0] : null;
+          docUploads.drugLicenses = formData.drugLicenseFiles && formData.drugLicenseFiles.length ? await uploadFiles(formData.drugLicenseFiles, 'pharmacy_docs') : [];
+          docUploads.pharmacistRegistration = formData.pharmacistRegistrationFile ? (await uploadFiles(formData.pharmacistRegistrationFile, 'pharmacy_docs'))[0] : null;
+          docUploads.storePhotos = formData.storePhotos && formData.storePhotos.length ? await uploadFiles(formData.storePhotos, 'pharmacy_photos') : [];
+          docUploads.sampleInvoice = formData.sampleInvoiceFile ? (await uploadFiles(formData.sampleInvoiceFile, 'pharmacy_docs'))[0] : null;
         } catch (uErr) { console.warn('Upload error', uErr); }
 
-        await setDoc(doc(db, "providers_pharmacies", authUser.uid), {
-          pharmacyName: formData.pharmacyName,
-          pharmacyLicenseNumber: formData.pharmacyLicenseNumber || null,
-          pharmacyAddress: formData.pharmacyAddress || null,
-          pharmacyLat: formData.pharmacyLat || null,
-          pharmacyLng: formData.pharmacyLng || null,
-          pharmacyOpeningHours: formData.pharmacyOpeningHours || null,
-          ownerName: formData.ownerName || null,
+        const { error: profileError } = await supabase.from('providers_pharmacies').insert({
+          id: authUser.id,
+          pharmacy_name: formData.pharmacyName,
+          pharmacy_license_number: formData.pharmacyLicenseNumber || null,
+          pharmacy_address: formData.pharmacyAddress || null,
+          pharmacy_lat: formData.pharmacyLat || null,
+          pharmacy_lng: formData.pharmacyLng || null,
+          pharmacy_opening_hours: formData.pharmacyOpeningHours || null,
+          owner_name: formData.ownerName || null,
           documents: {
             gst: docUploads.gst || null,
             drugLicenses: docUploads.drugLicenses || [],
@@ -126,15 +146,17 @@ const PharmacySignup = () => {
             storePhotos: docUploads.storePhotos || [],
             sampleInvoice: docUploads.sampleInvoice || null,
           },
-          inventoryFormat: formData.inventoryFormat || null,
-          deliveryCapability: formData.deliveryCapability || null,
-          panNumber: formData.panNumber || null,
-          bankAccount: formData.bankAccount || null,
-          whatsappNumber: formData.whatsappNumber || null,
+          inventory_format: formData.inventoryFormat || null,
+          delivery_capability: formData.deliveryCapability || null,
+          pan_number: formData.panNumber || null,
+          bank_account: formData.bankAccount || null,
+          whatsapp_number: formData.whatsappNumber || null,
           consents: formData.consents || {},
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
+
+        if (profileError) throw profileError;
 
         // Step 4: Link phone if provided
         if (formData.phone) {
@@ -157,16 +179,6 @@ const PharmacySignup = () => {
         // All operations succeeded
         setIsLoading(false);
         navigate("/login");
-      } catch (firestoreError) {
-        // If Firestore operations fail, delete the auth user to maintain consistency
-        if (authUser) {
-          try {
-            await authUser.delete();
-          } catch (deleteError) {
-            console.error("Error cleaning up auth user:", deleteError);
-          }
-        }
-        throw firestoreError; // Re-throw to be caught by outer catch
       }
     } catch (error) {
       console.error("Error signing up:", error);
