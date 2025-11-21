@@ -50,7 +50,7 @@ const PatientDashboard = () => {
         const { data: labTests } = await supabase
           .from('patient_lab_tests')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('patient_id', user.id)
           .limit(1);
 
         if (!labTests || labTests.length === 0) {
@@ -59,18 +59,22 @@ const PatientDashboard = () => {
           
           await supabase.from('patient_lab_tests').insert([
             {
-              user_id: user.id,
-              name: 'Complete Blood Count (CBC)',
-              mode: 'At-Center',
-              center: 'City Central Imaging',
-              scheduled_at: future,
+              patient_id: user.id,
+              result: {
+                name: 'Complete Blood Count (CBC)',
+                mode: 'At-Center',
+                center: 'City Central Imaging',
+                scheduled_at: future,
+              }
             },
             {
-              user_id: user.id,
-              name: 'Thyroid Profile',
-              mode: 'At-Home',
-              center: 'Valley Path Labs',
-              scheduled_at: past,
+              patient_id: user.id,
+              result: {
+                name: 'Thyroid Profile',
+                mode: 'At-Home',
+                center: 'Valley Path Labs',
+                scheduled_at: past,
+              }
             }
           ]);
         }
@@ -79,24 +83,28 @@ const PatientDashboard = () => {
         const { data: reports } = await supabase
           .from('patient_reports')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('patient_id', user.id)
           .limit(1);
 
         if (!reports || reports.length === 0) {
           await supabase.from('patient_reports').insert([
             {
-              user_id: user.id,
-              title: 'Lipid Profile Report',
-              from_lab: 'Valley Path Labs',
-              date: new Date('2024-07-10').toISOString(),
-              file_url: 'https://example.com/lipid-profile.pdf',
+              patient_id: user.id,
+              file_path: 'https://example.com/lipid-profile.pdf',
+              file_meta: {
+                title: 'Lipid Profile Report',
+                from_lab: 'Valley Path Labs',
+                date: new Date('2024-07-10').toISOString(),
+              }
             },
             {
-              user_id: user.id,
-              title: 'Chest X-Ray Analysis',
-              from_lab: 'City Central Imaging',
-              date: new Date('2024-06-25').toISOString(),
-              file_url: 'https://example.com/chest-xray.pdf',
+              patient_id: user.id,
+              file_path: 'https://example.com/chest-xray.pdf',
+              file_meta: {
+                title: 'Chest X-Ray Analysis',
+                from_lab: 'City Central Imaging',
+                date: new Date('2024-06-25').toISOString(),
+              }
             }
           ]);
         }
@@ -105,12 +113,12 @@ const PatientDashboard = () => {
         const { data: cart } = await supabase
           .from('patient_carts')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('patient_id', user.id)
           .single();
 
         if (!cart) {
           await supabase.from('patient_carts').insert({
-            user_id: user.id,
+            patient_id: user.id,
             items: [
               { id: 'med-1', name: 'Paracetamol 500mg', qty: 2, price: 25, pharmacy: 'City Pharmacy' },
               { id: 'med-2', name: 'Cough Syrup 100ml', qty: 1, price: 120, pharmacy: 'HealthPlus Store' },
@@ -130,33 +138,52 @@ const PatientDashboard = () => {
           const now = new Date().toISOString();
           
           // Upcoming Lab Tests
-          const { data: upcoming } = await supabase
+          const { data: rawTests } = await supabase
             .from('patient_lab_tests')
             .select('*')
-            .eq('user_id', user.id)
-            .gte('scheduled_at', now)
-            .order('scheduled_at', { ascending: true })
-            .limit(5);
+            .eq('patient_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(20);
             
           if (cancelled) return;
-          if (upcoming) setLabUpcoming(upcoming);
+          if (rawTests) {
+            const mappedTests = rawTests.map(t => ({
+              ...t,
+              ...(t.result || {}), // Spread result (name, mode, center, scheduled_at)
+            }))
+            .filter(t => t.scheduled_at && new Date(t.scheduled_at) >= new Date())
+            .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
+            .slice(0, 5);
+            
+            setLabUpcoming(mappedTests);
+          }
 
           // Reports
-          const { data: reports } = await supabase
+          const { data: rawReports } = await supabase
             .from('patient_reports')
             .select('*')
-            .eq('user_id', user.id)
-            .order('date', { ascending: false })
-            .limit(5);
+            .eq('patient_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(20);
 
           if (cancelled) return;
-          if (reports) setReportsData(reports);
+          if (rawReports) {
+            const mappedReports = rawReports.map(r => ({
+              ...r,
+              ...(r.file_meta || {}), // Spread file_meta (title, from_lab, date)
+              file_url: r.file_path,
+            }))
+            .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+            .slice(0, 5);
+
+            setReportsData(mappedReports);
+          }
 
           // Cart
           const { data: cart } = await supabase
             .from('patient_carts')
             .select('items')
-            .eq('user_id', user.id)
+            .eq('patient_id', user.id)
             .single();
 
           if (cancelled) return;

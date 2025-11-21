@@ -1,16 +1,31 @@
 // frontend/src/Pages/Home.jsx
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Carousel } from 'react-responsive-carousel';
 import { FaSearch } from 'react-icons/fa';
 import OurCoreFeatures from '../Components/home/OurCoreFeatures';
 import GetInTouch from "../Components/home/GetInTouch";
 import MedstaForProviders from "../Components/home/MedstaForProviders";
 import PlaceYourOrder from '../Components/home/PlaceYourOrder';
-
-
+import { useAuthStore } from '@/Stores/authStore.js';
+import { useNavigate } from 'react-router-dom';
 
 const Home = () => {
+  const user = useAuthStore((s) => s.user);
+  const role = useAuthStore((s) => s.role);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      if (role === 'provider') {
+        navigate('/provider-dashboard');
+      } else {
+        // Default to patient dashboard if role is patient or undefined
+        navigate('/patient-dashboard');
+      }
+    }
+  }, [user, role, navigate]);
+
   // Placeholder data for partners
   const partners = [
     { name: "Partner 1", img: "/Images/22.png" },

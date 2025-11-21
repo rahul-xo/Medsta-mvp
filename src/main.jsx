@@ -30,7 +30,7 @@ import OthersSignup from './Pages/Signup/Provider/OthersSignup.jsx'
 import SeedClinic from './Pages/Dev/SeedClinic.jsx'
 import SeedTherapy from './Pages/Dev/SeedTherapy.jsx'
 import SeedOthers from './Pages/Dev/SeedOthers.jsx'
-import Profile from './Pages/Profile.jsx'
+
 
 const router = createBrowserRouter([
   {
@@ -58,15 +58,11 @@ const router = createBrowserRouter([
   { path: '/signup/provider/therapy', element: <TherapySignup /> },
   { path: '/signup/provider/others', element: <OthersSignup /> },
   { path: '/patient-dashboard', element: (
-    <ProtectedRoute allowRoles={['patient']}>
+    <ProtectedRoute>
       <PatientDashboard />
     </ProtectedRoute>
   ) },
-  { path: '/profile', element: (
-    <ProtectedRoute>
-      <Profile />
-    </ProtectedRoute>
-  ) },
+
   { path: '/provider-dashboard', element: (
     <ProtectedRoute allowRoles={['provider']}>
       <ProviderDashboard />

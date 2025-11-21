@@ -123,7 +123,7 @@ const NavBar = () => {
                 {profileOpen && (
                   <div className="absolute right-0 top-12 w-56 bg-white rounded-md shadow-lg border border-gray-100 z-50 py-1">
                     <NavLink
-                      to="/profile"
+                      to={role === 'patient' ? '/patient-dashboard' : '/provider-dashboard'}
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       onClick={() => setProfileOpen(false)}
                     >
@@ -151,7 +151,7 @@ const NavBar = () => {
                       Need Help
                     </NavLink>
                     <NavLink
-                      to="/profile"
+                      to={role === 'patient' ? '/patient-dashboard' : '/provider-dashboard'}
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       onClick={() => setProfileOpen(false)}
                     >
@@ -251,7 +251,7 @@ const NavBar = () => {
             ) : (
               <>
                 <Link
-                  to="/profile"
+                  to={role === 'patient' ? '/patient-dashboard' : '/provider-dashboard'}
                   onClick={() => setIsMenuOpen(false)}
                   className="bg-green-600 text-white font-semibold px-4 py-2 rounded-md text-center"
                 >
