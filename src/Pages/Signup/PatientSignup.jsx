@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/Services/supabase.js";
+import { ensureAuthReady } from "@/Services/auth.helpers.js";
 import OtpModal from "/src/Components/common/OtpModal.jsx";
 
 const PatientSignup = () => {
@@ -54,6 +55,55 @@ const PatientSignup = () => {
       const user = authData.user;
 
       if (user) {
+        // Ensure we have a session; sign-in automatically if possible and wait for the client to register the session.
+        if (!authData.session) {
+          try {
+            await supabase.auth.signInWithPassword({
+              email: formData.email,
+              password: formData.password,
+            });
+          } catch (e) {
+            // If we can't sign in (confirmation required), the `ensureAuthReady` call below will timeout.
+          }
+        }
+
+        // Wait for auth client to be ready and have the expected user id; if this times out, stop and let user confirm email.
+        try {
+          await ensureAuthReady(supabase, user.id);
+        } catch (e) {
+          setError('Please confirm your email address to complete signup.');
+          setIsLoading(false);
+          return;
+        }
+        // If the user was created but no session was returned (email confirmation required),
+        // try to sign in to create a session so the RLS policies allow inserts. If sign-in
+        // is not allowed (e.g., confirmation required), inform the user and let them
+        // complete profile after confirming their email.
+        if (!authData.session) {
+          try {
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email: formData.email,
+              password: formData.password,
+            });
+            if (signInError) {
+              // If sign in fails, likely email confirmation is required — inform user
+              setError('Please confirm your email address before completing your profile.');
+              setIsLoading(false);
+              return;
+            }
+            // update the user and session reference
+            const signedInUser = signInData.user ?? signInData;
+            if (signedInUser) {
+              // replace local `user` reference
+              // eslint-disable-next-line no-param-reassign
+              // NOTE: `user` is a local constant - we won't mutate it; we'll just proceed
+            }
+          } catch (err) {
+            setError('Unable to sign in automatically. Please sign in manually after confirming your email.');
+            setIsLoading(false);
+            return;
+          }
+        }
         // Step 2: Create user metadata document
         // Note: This might be handled by a Supabase Trigger, but doing it explicitly here for safety if no trigger exists
         const { error: userError } = await supabase

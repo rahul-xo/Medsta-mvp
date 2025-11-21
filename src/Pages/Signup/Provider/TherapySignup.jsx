@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/Services/supabase.js';
+import { ensureAuthReady } from '@/Services/auth.helpers.js';
 import AddressPicker from '/src/Components/common/AddressPicker.jsx';
 import OtpModal from '/src/Components/common/OtpModal.jsx';
 import { startPhoneLinking } from '@/Services/phone.service.js';
@@ -73,6 +74,19 @@ const TherapySignup = () => {
 
       if (authError) throw authError;
       authUser = authData.user;
+
+      if (authUser && !authData.session) {
+        try {
+          await supabase.auth.signInWithPassword({ email: formData.email, password: formData.password });
+        } catch {}
+        try {
+          await ensureAuthReady(supabase, authUser.id);
+        } catch (e) {
+          setError('Please confirm your email to complete sign up.');
+          setIsLoading(false);
+          return;
+        }
+      }
 
       if (authUser) {
         // Step 2: Create user metadata document

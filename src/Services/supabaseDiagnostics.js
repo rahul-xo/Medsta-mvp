@@ -1,6 +1,6 @@
 import { supabase } from './supabase.js';
 
-export async function runFirebaseDiagnostics() {
+export async function runSupabaseDiagnostics() {
   const results = { authUser: null, writeUsersRow: null, readUsersRow: null, errors: [] };
   try {
     const { data: userData, error: userErr } = await supabase.auth.getUser();

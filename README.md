@@ -24,7 +24,7 @@ npm run dev
 - `npm run build` — production build
 - `npm run preview` — preview build locally
 - `npm run lint` — run ESLint
-(Firebase scripts removed) Use the Supabase dashboard or CLI for DB/storage configuration.
+(Supabase) Use the Supabase dashboard or CLI for DB/storage configuration.
 
 ### Project layout (high level)
 -- `src/Services/` — `supabase.js` (env-based), phone.service.js, api.js (Axios)
@@ -40,8 +40,8 @@ npm run dev
 - Authorized domains (CORS) should include localhost/127.0.0.1 for local dev.
 
 ### Troubleshooting
-- `auth/invalid-api-key` or `[Firebase] Missing required env values` → check `.env.local` keys and restart `npm run dev`.
-- Permission errors → ensure Firestore is created and rules are deployed: `npm run deploy:rules`.
+- Supabase auth errors → verify `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set in `.env.local` and restart `npm run dev`.
+- Permission/row-level errors → ensure your Supabase tables exist and Row Level Security (RLS) policies allow the intended operations for authenticated users.
 
 ### Pull latest
 ```bash
