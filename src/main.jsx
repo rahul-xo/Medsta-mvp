@@ -63,7 +63,7 @@ const router = createBrowserRouter([
     </ProtectedRoute>
   ) },
   { path: '/profile', element: (
-    <ProtectedRoute allowRoles={['patient','provider']}>
+    <ProtectedRoute>
       <Profile />
     </ProtectedRoute>
   ) },
