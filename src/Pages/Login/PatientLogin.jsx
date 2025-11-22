@@ -35,12 +35,11 @@ const PatientLogin = () => {
         const role = userData?.role;
         try { localStorage.setItem('medsta.role', role || ''); } catch {}
 
-        if (role === 'patient') {
-          navigate('/patient-dashboard');
-        } else if (role === 'provider') {
+        if (role === 'provider') {
           navigate('/provider-dashboard');
         } else {
-          navigate('/');
+          // Default to patient dashboard if role is patient or undefined (common for new users or RLS issues)
+          navigate('/patient-dashboard');
         }
       }
     } catch (err) {

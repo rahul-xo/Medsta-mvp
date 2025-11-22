@@ -151,7 +151,7 @@ const NavBar = () => {
                       Need Help
                     </NavLink>
                     <NavLink
-                      to="/profile"
+                      to={role === 'patient' ? '/patient-dashboard' : '/provider-dashboard'}
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       onClick={() => setProfileOpen(false)}
                     >
