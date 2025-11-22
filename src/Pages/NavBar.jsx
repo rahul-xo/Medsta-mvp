@@ -4,6 +4,7 @@ import { FaShoppingCart, FaUserCircle } from "react-icons/fa";
 import { useAuthStore } from "@/Stores/authStore.js";
 import { useLocationStore } from "@/Stores/locationStore.js";
 import { FaMapMarkerAlt } from "react-icons/fa";
+import logo from "@/assets/logo.png";
 
 const NavBar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -35,18 +36,6 @@ const NavBar = () => {
       <div className="w-full h-16 fixed flex justify-center items-center top-0 left-0 z-50 bg-white/90 backdrop-blur-sm shadow-md px-4 sm:px-6 lg:px-8">
         {/* Inner container for max-width and centering */}
         <div className="w-full max-w-7xl flex justify-between items-center">
-
-          {/* Left Logo */}
-          <div className="shrink-0 flex items-center">
-            <NavLink to={user ? (role === 'patient' ? '/patient-dashboard' : '/provider-dashboard') : '/'}>
-              <img
-                // Adjusted height slightly, kept width settings for responsiveness
-                className="h-15 w-40 sm:w-48 md:w-56 object-contain"
-                src="../Images/logo.png"
-                alt="Logo"
-              />
-            </NavLink>
-          </div>
 
           {/* Center Menu: flex-1 ensures it pushes logo left and buttons right WITHIN the inner container */}
           <div className="hidden md:flex flex-1 justify-center">

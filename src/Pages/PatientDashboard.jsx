@@ -253,6 +253,11 @@ const PatientDashboard = () => {
               secondary={labUpcoming[0]?.scheduled_at ? `Next: ${formatDateTime(labUpcoming[0].scheduled_at)}` : 'No upcoming'}
               icon={<FaRegCalendarAlt className="text-sky-600" />}
               className="col-span-12 sm:col-span-6 lg:col-span-2"
+              action={
+                <Link to="/book-appointment" className="mt-3 block w-full text-center py-2 rounded-lg bg-sky-50 text-sky-700 text-sm font-semibold hover:bg-sky-100 transition-colors">
+                  Book Appointment
+                </Link>
+              }
             />
 
             {/* Orders */}
@@ -262,6 +267,11 @@ const PatientDashboard = () => {
               secondary={cartItems.length ? '1 arriving today' : 'No active orders'}
               icon={<FaPills className="text-emerald-600" />}
               className="col-span-12 sm:col-span-6 lg:col-span-2"
+              action={
+                <Link to="/medicine-ordering" className="mt-3 block w-full text-center py-2 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 transition-colors">
+                  Order Medicine
+                </Link>
+              }
             />
 
             {/* Reports */}
@@ -271,6 +281,11 @@ const PatientDashboard = () => {
               secondary={reportsData.length ? 'Ready in 2 hours' : 'No pending reports'}
               icon={<FaFileAlt className="text-rose-600" />}
               className="col-span-12 sm:col-span-6 lg:col-span-2"
+              action={
+                <Link to="/diagnostic-tests" className="mt-3 block w-full text-center py-2 rounded-lg bg-rose-50 text-rose-700 text-sm font-semibold hover:bg-rose-100 transition-colors">
+                  Book Lab Test
+                </Link>
+              }
             />
           </div>
         </section>
@@ -548,18 +563,25 @@ const PatientDashboard = () => {
 export default PatientDashboard;
 
 // Local component for summary cards
-const SummaryCard = ({ title, primary, secondary, icon, className = '' }) => (
+const SummaryCard = ({ title, primary, secondary, icon, className = '', action }) => (
   <div className={`bg-white rounded-xl shadow-sm p-5 border border-slate-100 flex flex-col justify-between ${className}`}>
-    <div className="flex items-center gap-3">
-      <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-lg">
-        {icon}
+    <div>
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-lg">
+          {icon}
+        </div>
+        <div className="text-sm text-slate-500">{title}</div>
       </div>
-      <div className="text-sm text-slate-500">{title}</div>
+      <div className="mt-3">
+        <div className="text-xl font-extrabold text-slate-900">{primary}</div>
+        <div className="text-xs text-slate-500 mt-1">{secondary}</div>
+      </div>
     </div>
-    <div className="mt-3">
-      <div className="text-xl font-extrabold text-slate-900">{primary}</div>
-      <div className="text-xs text-slate-500 mt-1">{secondary}</div>
-    </div>
+    {action && (
+      <div className="mt-4 pt-4 border-t border-slate-50">
+        {action}
+      </div>
+    )}
   </div>
 );
 

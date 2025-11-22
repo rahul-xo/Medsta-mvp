@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/Services/supabase.js";
@@ -6,6 +5,7 @@ import AddressPicker from "/src/Components/common/AddressPicker.jsx";
 import ToggleSwitch from "/src/Components/common/ToggleSwitch.jsx";
 import OtpModal from "/src/Components/common/OtpModal.jsx";
 import { startPhoneLinking } from "@/Services/phone.service.js";
+import { FaUserMd, FaClinicMedical, FaFileUpload, FaTrash, FaPlus, FaCheckCircle } from "react-icons/fa";
 
 const DoctorSignup = () => {
   const [formData, setFormData] = useState({
@@ -30,9 +30,7 @@ const DoctorSignup = () => {
     clinicLicenseFile: null,
     prescriptionSampleFile: null,
     clinicPhotosFiles: [],
-    panNumber: "",
-    bankAccount: { accountHolder: "", accountNumber: "", ifsc: "" },
-    whatsappNumber: "",
+    clinicPhotosFiles: [],
     consents: { listOnMedsta: false, pricingTerms: false, dataHandling: false },
   });
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -85,7 +83,6 @@ const DoctorSignup = () => {
 
       if (authUser) {
         // Step 2: Create user metadata document (if not handled by trigger)
-        // We'll try to insert, if it fails due to duplicate (trigger), we ignore
         const { error: userError } = await supabase.from('users').insert({
           id: authUser.id,
           email: formData.email,
@@ -174,9 +171,6 @@ const DoctorSignup = () => {
             prescriptionSample: docUploads.prescriptionSample || null,
             clinicPhotos: docUploads.clinicPhotos || [],
           },
-          pan_number: formData.panNumber || null,
-          bank_account: formData.bankAccount || null,
-          whatsapp_number: formData.whatsappNumber || null,
           consents: formData.consents || {},
           status: "pending",
           created_at: new Date().toISOString(),
@@ -211,8 +205,6 @@ const DoctorSignup = () => {
       console.error("Error signing up:", error);
       setError(error.message || "Failed to create account. Please try again.");
       setIsLoading(false);
-      // Cleanup if needed (Supabase doesn't have easy 'delete user' from client without admin, so we might leave a partial user if profile creation fails. 
-      // In a real app, we'd use a transaction or Edge Function.)
     }
   };
 
@@ -234,434 +226,375 @@ const DoctorSignup = () => {
     }
   };
 
+  // Helper component for file inputs
+  const FileUpload = ({ label, onChange, multiple = false, files }) => (
+    <div className="form-group">
+      <label className="block text-sm font-medium text-slate-700 mb-2">{label}</label>
+      <div className="relative">
+        <input
+          type="file"
+          id={label}
+          className="hidden"
+          onChange={onChange}
+          multiple={multiple}
+          accept="image/*,.pdf"
+        />
+        <label
+          htmlFor={label}
+          className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+        >
+          <div className="text-center">
+            <FaFileUpload className="mx-auto h-6 w-6 text-slate-400 mb-1" />
+            <span className="text-sm text-slate-600">
+              {files && (multiple ? files.length > 0 : files) 
+                ? (multiple ? `${files.length} file(s) selected` : files.name)
+                : "Choose file(s)"}
+            </span>
+          </div>
+        </label>
+      </div>
+    </div>
+  );
+
   return (
-    // ADDED pt-20, REMOVED bg-slate-50
-    <main className="min-h-screen flex items-center justify-center py-12 pt-20">
-      {/* UPDATED max-w-md to max-w-2xl */}
-      <div className="max-w-2xl w-full px-6">
-        <div className="bg-white rounded-xl shadow-md p-8">
-          <h1 className="text-3xl font-bold text-[#009cfb] mb-1">Create a Clinic Account</h1>
-          <p className="text-sm text-slate-500 mb-6">Register your clinic and optionally add multiple doctors now or later.</p>
-
-          <form onSubmit={handleSignUp} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Primary Contact Name</label>
-              <input
-                type="text"
-                name="doctorFullName"
-                value={formData.doctorFullName}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    doctorFullName: e.target.value,
-                  }))
-                }
-                placeholder="e.g. Dr. John Doe or Clinic Admin"
-                className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Clinic Name
-              </label>
-              <input
-                type="text"
-                name="clinicName"
-                value={formData.clinicName}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    clinicName: e.target.value,
-                  }))
-                }
-                placeholder="e.g. City Central Clinic"
-                className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, email: e.target.value }))
-                }
-                placeholder="name@example.com"
-                className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, phone: e.target.value }))
-                }
-                placeholder="e.g. 9876543210"
-                className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-              />
-            </div>
-
-            {/* Doctors list for this clinic */}
-            <div className="mt-2">
-              <h2 className="text-xl font-semibold text-slate-800 mb-2">Doctors</h2>
-              <p className="text-sm text-slate-500 mb-3">Add one or more doctors associated with this clinic.</p>
-              {formData.doctors.map((docItem, idx) => (
-                <div key={idx} className="mb-4 border border-slate-200 rounded-lg p-4 bg-white">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-slate-700">Doctor {idx + 1}</h3>
-                    {formData.doctors.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData((p) => ({ ...p, doctors: p.doctors.filter((_, i) => i !== idx) }))}
-                        className="px-3 py-1 rounded-md bg-red-100 text-red-600 hover:bg-red-200 text-sm"
-                        aria-label="Remove doctor"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Doctor name</label>
-                      <input
-                        type="text"
-                        value={docItem.name}
-                        onChange={(e) => {
-                          const doctors = [...formData.doctors];
-                          doctors[idx] = { ...doctors[idx], name: e.target.value };
-                          setFormData((p) => ({ ...p, doctors }));
-                        }}
-                        className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Specialization</label>
-                      <input
-                        type="text"
-                        value={docItem.specialization}
-                        onChange={(e) => {
-                          const doctors = [...formData.doctors];
-                          doctors[idx] = { ...doctors[idx], specialization: e.target.value };
-                          setFormData((p) => ({ ...p, doctors }));
-                        }}
-                        className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Years of Experience</label>
-                      <input
-                        type="number"
-                        value={docItem.experience}
-                        onChange={(e) => {
-                          const doctors = [...formData.doctors];
-                          doctors[idx] = { ...doctors[idx], experience: e.target.value };
-                          setFormData((p) => ({ ...p, doctors }));
-                        }}
-                        className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Fee (INR)</label>
-                      <input
-                        type="number"
-                        value={docItem.consultationFee}
-                        onChange={(e) => {
-                          const doctors = [...formData.doctors];
-                          doctors[idx] = { ...doctors[idx], consultationFee: e.target.value };
-                          setFormData((p) => ({ ...p, doctors }));
-                        }}
-                        className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => setFormData((p) => ({ ...p, doctors: [...p.doctors, { name: "", specialization: "", experience: "", consultationFee: "" }] }))}
-                className="mt-1 px-4 py-2 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200"
-              >
-                + Add another doctor
-              </button>
-            </div>
-
-            {/* Clinic registration number (optional) */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Medical Registration Number</label>
-              <input
-                type="text"
-                name="medicalRegNumber"
-                value={formData.medicalRegNumber}
-                onChange={(e) => setFormData((prev) => ({ ...prev, medicalRegNumber: e.target.value }))}
-                placeholder="Clinic registration number (optional)"
-                className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-              />
-            </div>
-
-            <AddressPicker
-              label="Clinic Address"
-              placeholder="Full clinic address"
-              address={formData.clinicAddress}
-              onChange={(addr) =>
-                setFormData((prev) => ({ ...prev, clinicAddress: addr }))
-              }
-              lat={formData.clinicLat}
-              lng={formData.clinicLng}
-              onLocationChange={({ lat, lng }) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  clinicLat: lat,
-                  clinicLng: lng,
-                }))
-              }
-            />
-
-            <ToggleSwitch
-              checked={formData.videoConsultation}
-              onChange={(v) =>
-                setFormData((prev) => ({ ...prev, videoConsultation: v }))
-              }
-              label="Video Consultation"
-              description="Are you available for video consultations?"
-            />
-
-            {/* Documents & verification inputs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Photo ID (Aadhaar / PAN)</label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={(e) => setFormData((p) => ({ ...p, photoIdFile: e.target.files[0] }))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Degree certificates (multiple)</label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  multiple
-                  onChange={(e) => setFormData((p) => ({ ...p, degreeFiles: Array.from(e.target.files || []) }))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Specialization proof (optional)</label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  multiple
-                  onChange={(e) => setFormData((p) => ({ ...p, specializationProofFiles: Array.from(e.target.files || []) }))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Clinic License / Registration</label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={(e) => setFormData((p) => ({ ...p, clinicLicenseFile: e.target.files[0] }))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Prescription sample (optional)</label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={(e) => setFormData((p) => ({ ...p, prescriptionSampleFile: e.target.files[0] }))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Clinic photos (multiple)</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => setFormData((p) => ({ ...p, clinicPhotosFiles: Array.from(e.target.files || []) }))}
-                  className="w-full"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">PAN Number</label>
-                <input
-                  type="text"
-                  value={formData.panNumber}
-                  onChange={(e) => setFormData((p) => ({ ...p, panNumber: e.target.value }))}
-                  className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">WhatsApp Number</label>
-                <input
-                  type="tel"
-                  value={formData.whatsappNumber}
-                  onChange={(e) => setFormData((p) => ({ ...p, whatsappNumber: e.target.value }))}
-                  placeholder="e.g. 9876543210"
-                  className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Bank A/C (IFSC)</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={formData.bankAccount.accountHolder}
-                    onChange={(e) => setFormData((p) => ({ ...p, bankAccount: { ...p.bankAccount, accountHolder: e.target.value } }))}
-                    placeholder="Holder"
-                    className="w-1/3 px-3 py-2 bg-slate-100 border border-slate-200 rounded-md"
-                  />
-                  <input
-                    type="text"
-                    value={formData.bankAccount.accountNumber}
-                    onChange={(e) => setFormData((p) => ({ ...p, bankAccount: { ...p.bankAccount, accountNumber: e.target.value } }))}
-                    placeholder="Account No"
-                    className="w-1/3 px-3 py-2 bg-slate-100 border border-slate-200 rounded-md"
-                  />
-                  <input
-                    type="text"
-                    value={formData.bankAccount.ifsc}
-                    onChange={(e) => setFormData((p) => ({ ...p, bankAccount: { ...p.bankAccount, ifsc: e.target.value } }))}
-                    placeholder="IFSC"
-                    className="w-1/3 px-3 py-2 bg-slate-100 border border-slate-200 rounded-md"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-2">
-              <label className="inline-flex items-center">
-                <input type="checkbox" className="mr-2" checked={formData.consents.listOnMedsta} onChange={(e) => setFormData((p) => ({ ...p, consents: { ...p.consents, listOnMedsta: e.target.checked } }))} />
-                <span className="text-sm">I consent to be listed on Medsta</span>
-              </label>
-              <label className="inline-flex items-center ml-4">
-                <input type="checkbox" className="mr-2" checked={formData.consents.pricingTerms} onChange={(e) => setFormData((p) => ({ ...p, consents: { ...p.consents, pricingTerms: e.target.checked } }))} />
-                <span className="text-sm">Agree to pricing & booking terms</span>
-              </label>
-              <label className="inline-flex items-center ml-4">
-                <input type="checkbox" className="mr-2" checked={formData.consents.dataHandling} onChange={(e) => setFormData((p) => ({ ...p, consents: { ...p.consents, dataHandling: e.target.checked } }))} />
-                <span className="text-sm">Consent to data handling policy</span>
-              </label>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Password (min. 6 characters)
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, password: e.target.value }))
-                }
-                placeholder="••••••••"
-                className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    confirmPassword: e.target.value,
-                  }))
-                }
-                placeholder="••••••••"
-                className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-md"
-                required
-              />
-            </div>
-
-            {(error || (!isValid() && submitAttempted)) && (
-              <p className="text-sm text-red-600 mt-2">
-                {error ||
-                  "Please fill all required fields and ensure passwords match."}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading || (!isValid() && submitAttempted)}
-              className={`w-full ${
-                isLoading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : !isValid() && submitAttempted
-                  ? "bg-slate-300 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-700"
-              } text-white px-4 py-2 rounded-md flex items-center justify-center`}
-            >
-              {isLoading ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Creating Account...
-                </>
-              ) : (
-                "Sign Up"
-              )}
-            </button>
-          </form>
-
-          <p className="text-slate-600 mt-4 text-center">
-            Already have an account?{" "}
-            <Link to="/login" className="text-blue-600 hover:underline">
-              Log in
-            </Link>
+    <main className="min-h-screen bg-slate-50 py-12 pt-24 px-4 sm:px-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-10">
+          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-3">
+            Join <span className="text-blue-600">Medsta</span> as a Partner
+          </h1>
+          <p className="text-slate-600 max-w-2xl mx-auto">
+            Register your clinic, manage appointments, and grow your practice with our comprehensive digital platform.
           </p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+          {/* Progress/Header Bar could go here */}
+          <div className="bg-blue-600 h-2 w-full"></div>
+
+          <form onSubmit={handleSignUp} className="p-6 md:p-10 space-y-10">
+            
+            {/* Section 1: Clinic & Contact Info */}
+            <section>
+              <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2 pb-2 border-b border-slate-100">
+                <FaClinicMedical className="text-blue-500" /> Clinic Details
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Primary Contact Name</label>
+                  <input
+                    type="text"
+                    value={formData.doctorFullName}
+                    onChange={(e) => setFormData(p => ({ ...p, doctorFullName: e.target.value }))}
+                    placeholder="e.g. Dr. John Doe"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Clinic Name</label>
+                  <input
+                    type="text"
+                    value={formData.clinicName}
+                    onChange={(e) => setFormData(p => ({ ...p, clinicName: e.target.value }))}
+                    placeholder="e.g. City Central Clinic"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                    placeholder="name@example.com"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                    placeholder="e.g. 9876543210"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all outline-none"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Medical Registration Number</label>
+                  <input
+                    type="text"
+                    value={formData.medicalRegNumber}
+                    onChange={(e) => setFormData(p => ({ ...p, medicalRegNumber: e.target.value }))}
+                    placeholder="Registration / License Number"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all outline-none"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <AddressPicker
+                    label="Clinic Address"
+                    placeholder="Search for your clinic location..."
+                    address={formData.clinicAddress}
+                    onChange={(addr) => setFormData(p => ({ ...p, clinicAddress: addr }))}
+                    lat={formData.clinicLat}
+                    lng={formData.clinicLng}
+                    onLocationChange={({ lat, lng }) => setFormData(p => ({ ...p, clinicLat: lat, clinicLng: lng }))}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Section 2: Doctors */}
+            <section>
+              <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2 pb-2 border-b border-slate-100">
+                <FaUserMd className="text-blue-500" /> Associated Doctors
+              </h2>
+              <div className="space-y-4">
+                {formData.doctors.map((docItem, idx) => (
+                  <div key={idx} className="bg-slate-50 rounded-xl p-6 border border-slate-200 relative group transition-all hover:shadow-md">
+                    <div className="absolute top-4 right-4">
+                      {formData.doctors.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData(p => ({ ...p, doctors: p.doctors.filter((_, i) => i !== idx) }))}
+                          className="text-slate-400 hover:text-red-500 transition-colors p-2"
+                          title="Remove Doctor"
+                        >
+                          <FaTrash size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Doctor {idx + 1}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <input
+                          type="text"
+                          value={docItem.name}
+                          onChange={(e) => {
+                            const doctors = [...formData.doctors];
+                            doctors[idx].name = e.target.value;
+                            setFormData(p => ({ ...p, doctors }));
+                          }}
+                          placeholder="Doctor Name"
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          value={docItem.specialization}
+                          onChange={(e) => {
+                            const doctors = [...formData.doctors];
+                            doctors[idx].specialization = e.target.value;
+                            setFormData(p => ({ ...p, doctors }));
+                          }}
+                          placeholder="Specialization (e.g. Cardiologist)"
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="number"
+                          value={docItem.experience}
+                          onChange={(e) => {
+                            const doctors = [...formData.doctors];
+                            doctors[idx].experience = e.target.value;
+                            setFormData(p => ({ ...p, doctors }));
+                          }}
+                          placeholder="Years of Experience"
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="number"
+                          value={docItem.consultationFee}
+                          onChange={(e) => {
+                            const doctors = [...formData.doctors];
+                            doctors[idx].consultationFee = e.target.value;
+                            setFormData(p => ({ ...p, doctors }));
+                          }}
+                          placeholder="Consultation Fee (₹)"
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setFormData(p => ({ ...p, doctors: [...p.doctors, { name: "", specialization: "", experience: "", consultationFee: "" }] }))}
+                  className="flex items-center gap-2 text-blue-600 font-medium hover:text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  <FaPlus size={12} /> Add Another Doctor
+                </button>
+              </div>
+            </section>
+
+            {/* Section 3: Services & Verification */}
+            <section>
+              <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2 pb-2 border-b border-slate-100">
+                <FaCheckCircle className="text-blue-500" /> Verification & Services
+              </h2>
+              
+              <div className="mb-8">
+                <ToggleSwitch
+                  checked={formData.videoConsultation}
+                  onChange={(v) => setFormData(p => ({ ...p, videoConsultation: v }))}
+                  label="Video Consultation Available"
+                  description="Enable this if you offer remote video consultations to patients."
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FileUpload 
+                  label="Photo ID (Aadhaar / PAN)" 
+                  files={formData.photoIdFile}
+                  onChange={(e) => setFormData(p => ({ ...p, photoIdFile: e.target.files[0] }))} 
+                />
+                <FileUpload 
+                  label="Degree Certificates" 
+                  multiple 
+                  files={formData.degreeFiles}
+                  onChange={(e) => setFormData(p => ({ ...p, degreeFiles: Array.from(e.target.files || []) }))} 
+                />
+                <FileUpload 
+                  label="Specialization Proof (Optional)" 
+                  multiple 
+                  files={formData.specializationProofFiles}
+                  onChange={(e) => setFormData(p => ({ ...p, specializationProofFiles: Array.from(e.target.files || []) }))} 
+                />
+                <FileUpload 
+                  label="Clinic License / Registration" 
+                  files={formData.clinicLicenseFile}
+                  onChange={(e) => setFormData(p => ({ ...p, clinicLicenseFile: e.target.files[0] }))} 
+                />
+                <FileUpload 
+                  label="Prescription Sample (Optional)" 
+                  files={formData.prescriptionSampleFile}
+                  onChange={(e) => setFormData(p => ({ ...p, prescriptionSampleFile: e.target.files[0] }))} 
+                />
+
+              </div>
+            </section>
+
+            {/* Section 4: Clinic Photos (Optional) */}
+            <section>
+              <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2 pb-2 border-b border-slate-100">
+                <FaCamera className="text-blue-500" /> Clinic Photos
+              </h2>
+              <div className="mb-8">
+                <p className="text-sm text-slate-500 mb-4">Upload photos of your clinic to help patients identify your facility (Optional).</p>
+                <FileUpload 
+                  label="Clinic Photos" 
+                  multiple 
+                  files={formData.clinicPhotosFiles}
+                  onChange={(e) => setFormData(p => ({ ...p, clinicPhotosFiles: Array.from(e.target.files || []) }))} 
+                />
+              </div>
+
+              <div className="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    checked={formData.consents.listOnMedsta} 
+                    onChange={(e) => setFormData(p => ({ ...p, consents: { ...p.consents, listOnMedsta: e.target.checked } }))} 
+                  />
+                  <span className="text-sm text-slate-600">I consent to be listed on Medsta and allow patients to book appointments.</span>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    checked={formData.consents.pricingTerms} 
+                    onChange={(e) => setFormData(p => ({ ...p, consents: { ...p.consents, pricingTerms: e.target.checked } }))} 
+                  />
+                  <span className="text-sm text-slate-600">I agree to the pricing and booking terms & conditions.</span>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    checked={formData.consents.dataHandling} 
+                    onChange={(e) => setFormData(p => ({ ...p, consents: { ...p.consents, dataHandling: e.target.checked } }))} 
+                  />
+                  <span className="text-sm text-slate-600">I consent to the data handling policy.</span>
+                </label>
+              </div>
+            </section>
+
+            {/* Section 5: Security */}
+            <section>
+              <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2 pb-2 border-b border-slate-100">
+                <FaLock className="text-blue-500" /> Account Security
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData(p => ({ ...p, password: e.target.value }))}
+                    placeholder="Min. 6 characters"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
+                  <input
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData(p => ({ ...p, confirmPassword: e.target.value }))}
+                    placeholder="Re-enter password"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all outline-none"
+                    required
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Error & Submit */}
+            <div className="pt-6 border-t border-slate-100">
+              {(error || (!isValid() && submitAttempted)) && (
+                <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 text-sm flex items-center gap-2">
+                  <span className="font-bold">Error:</span> {error || "Please fill all required fields and ensure passwords match."}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className={`w-full py-4 rounded-xl font-bold text-lg text-white shadow-lg transition-all transform hover:-translate-y-0.5 ${
+                  isLoading 
+                    ? "bg-slate-400 cursor-not-allowed" 
+                    : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-blue-200"
+                }`}
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Creating Account...
+                  </span>
+                ) : (
+                  "Create Clinic Account"
+                )}
+              </button>
+              
+              <p className="text-slate-500 mt-6 text-center text-sm">
+                Already have an account?{" "}
+                <Link to="/login" className="text-blue-600 font-semibold hover:underline">
+                  Log in here
+                </Link>
+              </p>
+            </div>
+          </form>
         </div>
       </div>
       <OtpModal
@@ -674,5 +607,8 @@ const DoctorSignup = () => {
     </main>
   );
 };
+
+// Missing icon imports fix
+import { FaLock, FaCamera } from "react-icons/fa";
 
 export default DoctorSignup;

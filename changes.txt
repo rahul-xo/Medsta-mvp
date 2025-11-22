@@ -1,0 +1,3 @@
+fix the ui of book apointment page
+also make it responsive
+logo is not visible

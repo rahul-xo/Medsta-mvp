@@ -17,6 +17,9 @@ import PatientDashboard from './Pages/PatientDashboard.jsx';
 import ProviderDashboard from './Pages/ProviderDashboard.jsx';
 import ProtectedRoute from '@/Components/router/ProtectedRoute.jsx';
 import Cart from './Pages/Cart.jsx'
+import ClinicProfile from './Pages/ClinicProfile.jsx'
+import DoctorProfile from './Pages/DoctorProfile.jsx'
+import BookingConfirmation from './Pages/BookingConfirmation.jsx'
 
 import "react-responsive-carousel/lib/styles/carousel.min.css";
 import PatientSignup from './Pages/PatientSignup.jsx'
@@ -50,6 +53,9 @@ const router = createBrowserRouter([
   { path: '/signup/patient', element: <PatientSignup /> },
   { path: '/signup/provider', element: <ProviderHub /> },
   { path: '/book-appointment', element: <BookAppointment /> },
+  { path: '/clinic/:id', element: <ClinicProfile /> },
+  { path: '/doctor/:id', element: <DoctorProfile /> },
+  { path: '/booking/confirm', element: <BookingConfirmation /> },
   { path: '/cart', element: <Cart /> },
   { path: '/signup/provider/doctor', element: <DoctorSignup /> },
   { path: '/signup/provider/diagnostic-center', element: <DiagnosticCenterSignup /> },
